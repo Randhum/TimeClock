@@ -1,0 +1,286 @@
+WindowManager:
+    TimeClockScreen:
+    AdminScreen:
+    RegisterScreen:
+    IdentifyScreen:
+    WTReportScreen:
+
+# Global Styles
+<Button>:
+    font_size: 24
+    size_hint_y: None
+    height: '80dp'
+
+<Label>:
+    font_size: 24
+
+# TimeClock Main Screen
+<TimeClockScreen>:
+    name: "timeclock"
+    BoxLayout:
+        orientation: "vertical"
+        padding: 20
+        spacing: 20
+        
+        Label:
+            text: root.status_message
+            font_size: '48sp'
+            halign: 'center'
+            valign: 'middle'
+            text_size: self.size
+            color: 0, 1, 0, 1  # Green color
+        
+        Button:
+            text: "Simulate Tag Scan (Debug)"
+            on_release: app.rfid.simulate_scan("TEST_TAG_123")
+            opacity: 0.5  # Less visible debug button
+            size_hint_y: None
+            height: '40dp'
+
+# Admin Panel Screen
+<AdminScreen>:
+    name: "admin"
+    ScrollView:
+        BoxLayout:
+            orientation: "vertical"
+            padding: 20
+            spacing: 20
+            size_hint_y: None
+            height: self.minimum_height
+            
+            Label:
+                text: "Admin Panel"
+                font_size: '36sp'
+                size_hint_y: None
+                height: '60dp'
+                
+            GridLayout:
+                cols: 1
+                spacing: 20
+                size_hint_y: None
+                height: self.minimum_height
+                
+                Button:
+                    text: "Register New User"
+                    on_release: app.root.current = "register"
+                Button:
+                    text: "Identify / Check Tag"
+                    on_release: app.root.current = "identify"
+                Button:
+                    text: "Working Time Reports"
+                    background_color: 0, 0.7, 1, 1  # Blue
+                    on_release: app.root.current = "wtreport"
+                Button:
+                    text: "Export CSV"
+                    on_release: root.export_csv()
+                Button:
+                    text: "Back to Timeclock"
+                    background_color: 1, 0, 0, 1 # Red
+                    on_release: app.root.current = "timeclock"
+
+# Identify Tag Screen
+<IdentifyScreen>:
+    name: "identify"
+    BoxLayout:
+        orientation: "vertical"
+        padding: 20
+        spacing: 20
+        
+        Label:
+            text: "Scan Tag to Identify"
+            font_size: '32sp'
+            size_hint_y: 0.15
+            
+        ScrollView:
+            Label:
+                text: root.tag_info
+                font_size: '24sp'
+                halign: 'center'
+                valign: 'middle'
+                text_size: self.width, None
+                size_hint_y: None
+                height: self.texture_size[1] if self.texture_size else '50dp'
+            
+        Button:
+            text: "Back to Admin"
+            on_release: app.root.current = "admin"
+
+# Register Employee Screen
+<RegisterScreen>:
+    name: "register"
+    BoxLayout:
+        orientation: "vertical"
+        padding: 20
+        spacing: 20
+        
+        Label:
+            text: "Register Employee"
+            font_size: '32sp'
+            size_hint_y: None
+            height: '50dp'
+            
+        FilteredTextInput:
+            id: name_input
+            hint_text: "Enter Employee Name"
+            multiline: False
+            font_size: '24sp'
+            size_hint_y: None
+            height: '60dp'
+            padding: 10
+            use_bubble: True
+            use_handles: False
+            write_tab: False
+            password: False
+            on_focus: root.on_textinput_focus(self, self.focus)
+            
+        Label:
+            text: "Scanned Tag: " + root.tag_id
+            font_size: '24sp'
+            text_size: self.size
+            halign: 'left'
+            valign: 'middle'
+            
+        BoxLayout:
+            size_hint_y: None
+            height: '60dp'
+            spacing: 10
+            CheckBox:
+                id: admin_checkbox
+                active: False
+                size_hint_x: 0.2
+            Label:
+                text: "Is Admin?"
+                halign: 'left'
+                text_size: self.size
+                valign: 'middle'
+                size_hint_x: 0.8
+
+        BoxLayout:
+            spacing: 20
+            size_hint_y: None
+            height: '80dp'
+            Button:
+                text: "Save"
+                background_color: 0, 1, 0, 1
+                on_release: root.save_user()
+            Button:
+                text: "Cancel"
+                background_color: 1, 0, 0, 1
+                on_release: root.cancel()
+
+# Working Time Report Screen
+<WTReportScreen>:
+    name: "wtreport"
+    BoxLayout:
+        orientation: "vertical"
+        padding: 20
+        spacing: 20
+        
+        Label:
+            text: "Working Time Report"
+            font_size: '36sp'
+            size_hint_y: None
+            height: '50dp'
+        
+        ScrollView:
+            GridLayout:
+                cols: 1
+                spacing: 15
+                size_hint_y: None
+                height: self.minimum_height
+                padding: 10
+                
+                Label:
+                    text: "Select Employee:"
+                    font_size: '24sp'
+                    size_hint_y: None
+                    height: '40dp'
+                
+                # Employee selection buttons (will be populated dynamically)
+                BoxLayout:
+                    id: employee_buttons_container
+                    orientation: "vertical"
+                    spacing: 10
+                    size_hint_y: None
+                    height: self.minimum_height
+                
+                Label:
+                    id: employee_label
+                    text: "No employee selected"
+                    font_size: '20sp'
+                    size_hint_y: None
+                    height: '40dp'
+                    color: 0.7, 0.7, 0.7, 1
+                
+                Label:
+                    text: "Date Range (Optional - Leave empty for all time):"
+                    font_size: '24sp'
+                    size_hint_y: None
+                    height: '40dp'
+                
+                BoxLayout:
+                    orientation: "horizontal"
+                    spacing: 10
+                    size_hint_y: None
+                    height: '60dp'
+                    Label:
+                        text: "Start Date (YYYY-MM-DD):"
+                        size_hint_x: 0.4
+                        text_size: self.size
+                        halign: 'left'
+                        valign: 'middle'
+                    FilteredTextInput:
+                        id: start_date_input
+                        hint_text: "YYYY-MM-DD"
+                        multiline: False
+                        font_size: '20sp'
+                        size_hint_x: 0.6
+                
+                BoxLayout:
+                    orientation: "horizontal"
+                    spacing: 10
+                    size_hint_y: None
+                    height: '60dp'
+                    Label:
+                        text: "End Date (YYYY-MM-DD):"
+                        size_hint_x: 0.4
+                        text_size: self.size
+                        halign: 'left'
+                        valign: 'middle'
+                    FilteredTextInput:
+                        id: end_date_input
+                        hint_text: "YYYY-MM-DD"
+                        multiline: False
+                        font_size: '20sp'
+                        size_hint_x: 0.6
+                
+                BoxLayout:
+                    orientation: "horizontal"
+                    spacing: 20
+                    size_hint_y: None
+                    height: '80dp'
+                    Button:
+                        text: "Generate Report"
+                        background_color: 0, 1, 0, 1  # Green
+                        on_release: root.generate_report()
+                    Button:
+                        text: "Export to CSV"
+                        background_color: 0, 0.7, 1, 1  # Blue
+                        on_release: root.export_report()
+        
+        ScrollView:
+            Label:
+                id: report_display
+                text: root.report_text
+                font_size: '18sp'
+                text_size: self.width, None
+                halign: 'left'
+                valign: 'top'
+                size_hint_y: None
+                height: max(self.texture_size[1] if self.texture_size else 0, 200)
+        
+        Button:
+            text: "Back to Admin"
+            size_hint_y: None
+            height: '60dp'
+            on_release: app.root.current = "admin"
