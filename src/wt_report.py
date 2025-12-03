@@ -4,6 +4,7 @@ Generates detailed working time reports per employee for HR purposes.
 """
 import datetime
 import logging
+from collections import deque
 from typing import List, Dict, Optional, Tuple
 from database import Employee, TimeEntry, ensure_db_connection
 
@@ -128,24 +129,16 @@ class WorkingTimeReport:
             List of work sessions for the day
         """
         sessions = []
-        clock_in_time = None
-        clock_in_entry = None
+        pending_ins = deque()
         
         for entry in entries:
             if entry.action == 'in':
-                if clock_in_time is not None:
-                    # Previous session wasn't closed, log warning
-                    logger.warning(f"Unclosed session for {self.employee.name} on {entry.timestamp.date()}")
-                clock_in_time = entry.timestamp
-                clock_in_entry = entry
-                
+                pending_ins.append((entry.timestamp, entry.id))
             elif entry.action == 'out':
-                if clock_in_time is None:
-                    # Clock out without clock in, log warning
+                if not pending_ins:
                     logger.warning(f"Clock out without clock in for {self.employee.name} on {entry.timestamp.date()}")
                     continue
-                
-                # Calculate work duration
+                clock_in_time, clock_in_id = pending_ins.popleft()
                 duration = entry.timestamp - clock_in_time
                 total_seconds = int(duration.total_seconds())
                 hours = total_seconds // 3600
@@ -158,18 +151,12 @@ class WorkingTimeReport:
                     'minutes': minutes,
                     'total_minutes': total_seconds // 60,
                     'formatted_time': f"{hours:02d}:{minutes:02d}",
-                    'clock_in_entry_id': clock_in_entry.id if clock_in_entry else None,
+                    'clock_in_entry_id': clock_in_id,
                     'clock_out_entry_id': entry.id
                 })
-                
-                clock_in_time = None  # Reset for next session
-                clock_in_entry = None
         
-        # Handle unclosed session (still clocked in)
-        if clock_in_time is not None:
-            logger.info(f"Open session for {self.employee.name} - still clocked in")
-            # Optionally include it with current time as clock out
-            # For now, we'll just log it
+        if pending_ins:
+            logger.info(f"{len(pending_ins)} open session(s) for {self.employee.name} remain without a clock-out")
         
         return sessions
     

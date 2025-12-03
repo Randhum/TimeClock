@@ -30,12 +30,19 @@ WindowManager:
             text_size: self.size
             color: 0, 1, 0, 1  # Green color
         
-        Button:
-            text: "Simulate Tag Scan (Debug)"
-            on_release: app.rfid.simulate_scan("TEST_TAG_123")
-            opacity: 0.5  # Less visible debug button
+        BoxLayout:
             size_hint_y: None
-            height: '40dp'
+            height: '70dp'
+            spacing: 20
+
+            Button:
+                text: "View Today's Sessions"
+                on_release: app.show_today_report_popup()
+                background_color: 0, 0.6, 1, 1
+            Button:
+                text: "Edit Today's Sessions"
+                on_release: app.edit_today_sessions()
+                background_color: 0.2, 0.8, 0.2, 1
 
 # Admin Panel Screen
 <AdminScreen>:
@@ -61,20 +68,20 @@ WindowManager:
                 height: self.minimum_height
                 
                 Button:
-                    text: "Register New User"
+                    text: "Neuen Benutzer Erfassen"
                     on_release: app.root.current = "register"
                 Button:
-                    text: "Identify / Check Tag"
+                    text: "RFID-Tag Identifizieren"
                     on_release: app.root.current = "identify"
                 Button:
-                    text: "Working Time Reports"
+                    text: "Work Time Reports"
                     background_color: 0, 0.7, 1, 1  # Blue
                     on_release: app.root.current = "wtreport"
                 Button:
-                    text: "Export CSV"
+                    text: "CSV Export"
                     on_release: root.export_csv()
                 Button:
-                    text: "Back to Timeclock"
+                    text: "Zurück zum Zeit-Terminal"
                     background_color: 1, 0, 0, 1 # Red
                     on_release: app.root.current = "timeclock"
 
@@ -87,7 +94,7 @@ WindowManager:
         spacing: 20
         
         Label:
-            text: "Scan Tag to Identify"
+            text: "Tag zur Identifikation scannen"
             font_size: '32sp'
             size_hint_y: 0.15
             
@@ -102,7 +109,7 @@ WindowManager:
                 height: self.texture_size[1] if self.texture_size else '50dp'
             
         Button:
-            text: "Back to Admin"
+            text: "Zurück"
             on_release: app.root.current = "admin"
 
 # Register Employee Screen
@@ -114,14 +121,14 @@ WindowManager:
         spacing: 20
         
         Label:
-            text: "Register Employee"
+            text: "Benutzer Erfassen"
             font_size: '32sp'
             size_hint_y: None
             height: '50dp'
             
         FilteredTextInput:
             id: name_input
-            hint_text: "Enter Employee Name"
+            hint_text: "Mitarbeiter Name, z.B. Mike Oxlong"
             multiline: False
             font_size: '24sp'
             size_hint_y: None
@@ -134,7 +141,7 @@ WindowManager:
             on_focus: root.on_textinput_focus(self, self.focus)
             
         Label:
-            text: "Scanned Tag: " + root.tag_id
+            text: "Gescannte Tag ID: " + root.tag_id
             font_size: '24sp'
             text_size: self.size
             halign: 'left'
@@ -149,7 +156,7 @@ WindowManager:
                 active: False
                 size_hint_x: 0.2
             Label:
-                text: "Is Admin?"
+                text: "Ist Admin?"
                 halign: 'left'
                 text_size: self.size
                 valign: 'middle'
@@ -160,11 +167,11 @@ WindowManager:
             size_hint_y: None
             height: '80dp'
             Button:
-                text: "Save"
+                text: "Speichern"
                 background_color: 0, 1, 0, 1
                 on_release: root.save_user()
             Button:
-                text: "Cancel"
+                text: "Abbrechen"
                 background_color: 1, 0, 0, 1
                 on_release: root.cancel()
 
@@ -177,7 +184,7 @@ WindowManager:
         spacing: 20
         
         Label:
-            text: "Working Time Report"
+            text: "Work Time Report"
             font_size: '36sp'
             size_hint_y: None
             height: '50dp'
@@ -191,7 +198,7 @@ WindowManager:
                 padding: 10
                 
                 Label:
-                    text: "Select Employee:"
+                    text: "Benutzer auswählen:"
                     font_size: '24sp'
                     size_hint_y: None
                     height: '40dp'
@@ -204,69 +211,69 @@ WindowManager:
                     size_hint_y: None
                     height: self.minimum_height
                 
-                Label:
-                    id: employee_label
-                    text: "No employee selected"
-                    font_size: '20sp'
-                    size_hint_y: None
-                    height: '40dp'
-                    color: 0.7, 0.7, 0.7, 1
-                
-                Label:
-                    text: "Date Range (Optional - Leave empty for all time):"
-                    font_size: '24sp'
-                    size_hint_y: None
-                    height: '40dp'
-                
-                BoxLayout:
-                    orientation: "horizontal"
-                    spacing: 10
-                    size_hint_y: None
-                    height: '60dp'
                     Label:
-                        text: "Start Date (YYYY-MM-DD):"
-                        size_hint_x: 0.4
-                        text_size: self.size
-                        halign: 'left'
-                        valign: 'middle'
-                    FilteredTextInput:
-                        id: start_date_input
-                        hint_text: "YYYY-MM-DD"
-                        multiline: False
+                        id: employee_label
+                        text: "Kein Benutzer ausgewählt"
                         font_size: '20sp'
-                        size_hint_x: 0.6
-                
-                BoxLayout:
-                    orientation: "horizontal"
-                    spacing: 10
-                    size_hint_y: None
-                    height: '60dp'
+                        size_hint_y: None
+                        height: '40dp'
+                        color: 0.7, 0.7, 0.7, 1
+                    
                     Label:
-                        text: "End Date (YYYY-MM-DD):"
-                        size_hint_x: 0.4
-                        text_size: self.size
-                        halign: 'left'
-                        valign: 'middle'
-                    FilteredTextInput:
-                        id: end_date_input
-                        hint_text: "YYYY-MM-DD"
-                        multiline: False
-                        font_size: '20sp'
-                        size_hint_x: 0.6
-                
-                BoxLayout:
-                    orientation: "horizontal"
-                    spacing: 20
-                    size_hint_y: None
-                    height: '80dp'
-                    Button:
-                        text: "Generate Report"
-                        background_color: 0, 1, 0, 1  # Green
-                        on_release: root.generate_report()
-                    Button:
-                        text: "Export to CSV"
-                        background_color: 0, 0.7, 1, 1  # Blue
-                        on_release: root.export_report()
+                        text: "Zeitraum (Optional - Leerlassen für gesamten Zeitraum):"
+                        font_size: '24sp'
+                        size_hint_y: None
+                        height: '40dp'
+                    
+                    BoxLayout:
+                        orientation: "horizontal"
+                        spacing: 10
+                        size_hint_y: None
+                        height: '60dp'
+                        Label:
+                            text: "Start (YYYY-MM-DD):"
+                            size_hint_x: 0.4
+                            text_size: self.size
+                            halign: 'left'
+                            valign: 'middle'
+                        FilteredTextInput:
+                            id: start_date_input
+                            hint_text: "YYYY-MM-DD"
+                            multiline: False
+                            font_size: '20sp'
+                            size_hint_x: 0.6
+                    
+                    BoxLayout:
+                        orientation: "horizontal"
+                        spacing: 10
+                        size_hint_y: None
+                        height: '60dp'
+                        Label:
+                            text: "Ende (YYYY-MM-DD):"
+                            size_hint_x: 0.4
+                            text_size: self.size
+                            halign: 'left'
+                            valign: 'middle'
+                        FilteredTextInput:
+                            id: end_date_input
+                            hint_text: "YYYY-MM-DD"
+                            multiline: False
+                            font_size: '20sp'
+                            size_hint_x: 0.6
+                    
+                    BoxLayout:
+                        orientation: "horizontal"
+                        spacing: 20
+                        size_hint_y: None
+                        height: '80dp'
+                        Button:
+                            text: "Bericht erstellen"
+                            background_color: 0, 1, 0, 1  # Green
+                            on_release: root.generate_report()
+                        Button:
+                            text: "Zu CSV Exportieren"
+                            background_color: 0, 0.7, 1, 1  # Blue
+                            on_release: root.export_report()
         
         ScrollView:
             Label:
@@ -280,7 +287,7 @@ WindowManager:
                 height: max(self.texture_size[1] if self.texture_size else 0, 200)
         
         Button:
-            text: "Back to Admin"
+            text: "Zurück"
             size_hint_y: None
             height: '60dp'
             on_release: app.root.current = "admin"

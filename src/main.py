@@ -2,6 +2,7 @@ import logging
 import csv
 import os
 import datetime
+import time
 
 # IMPORTANT: Config must be set BEFORE importing Kivy modules
 from kivy.config import Config
@@ -27,7 +28,7 @@ from kivy.uix.screenmanager import ScreenManager, Screen
 from kivy.uix.textinput import TextInput
 from kivy.clock import Clock
 from kivy.core.window import Window
-from kivy.properties import ObjectProperty, StringProperty
+from kivy.properties import BooleanProperty, ObjectProperty, StringProperty
 
 from database import (
     initialize_db, close_db, Employee, TimeEntry, db,
@@ -93,6 +94,7 @@ class FilteredTextInput(TextInput):
 
 class TimeClockScreen(Screen):
     status_message = StringProperty("Ready")
+    show_today_buttons = BooleanProperty(False)
 
     def update_status(self, message):
         self.status_message = message
@@ -101,35 +103,6 @@ class TimeClockScreen(Screen):
 
     def set_default_status(self):
         self.status_message = "Ready"
-
-
-class TodaySummaryPopup(Popup):
-    def __init__(self, total_text, view_callback, edit_callback, **kwargs):
-        super().__init__(
-            title="Today's Work Summary",
-            size_hint=(None, None),
-            size=(480, 240),
-            auto_dismiss=False,
-            **kwargs
-        )
-        self.view_callback = view_callback
-        self.edit_callback = edit_callback
-        content = BoxLayout(orientation='vertical', spacing=10, padding=12)
-        content.add_widget(Label(text=f"Total worked today: {total_text}", font_size='20sp', size_hint_y=None, height='60dp'))
-        btn_layout = BoxLayout(size_hint_y=None, height='60dp', spacing=10)
-        view_btn = Button(text="View entries", background_color=(0, 0.6, 1, 1))
-        edit_btn = Button(text="Edit entries", background_color=(0, 0.8, 0, 1))
-        view_btn.bind(on_release=lambda *_: self._handle_action(self.view_callback))
-        edit_btn.bind(on_release=lambda *_: self._handle_action(self.edit_callback))
-        btn_layout.add_widget(view_btn)
-        btn_layout.add_widget(edit_btn)
-        content.add_widget(btn_layout)
-        self.content = content
-
-    def _handle_action(self, action):
-        if action:
-            action()
-        self.dismiss()
 
 
 class EntryEditorPopup(Popup):
@@ -236,11 +209,11 @@ class IdentifyScreen(Screen):
         self.tag_info = text
 
 class RegisterScreen(Screen):
-    tag_id = StringProperty("Waiting for scan...")
+    tag_id = StringProperty("Warte auf Scan...")
     _last_input_time = 0.0
     
     def on_enter(self):
-        self.tag_id = "Waiting for scan..."
+        self.tag_id = "Warte auf Scan..."
         self.ids.name_input.text = ""
         self._last_input_time = 0.0
         # If admin setup mode, keep checkbox checked and disabled
@@ -261,7 +234,7 @@ class RegisterScreen(Screen):
     def cancel(self):
         if get_admin_count() == 0:
              # Can't cancel initial setup
-             App.get_running_app().show_popup("Error", "Must register an Admin to proceed.")
+             App.get_running_app().show_popup("Error", "Es muss ein Admin registriert werden, um fortzufahren.")
         else:
              self.manager.current = 'admin'
 
@@ -271,37 +244,39 @@ class RegisterScreen(Screen):
         is_admin = self.ids.admin_checkbox.active
         
         if not name:
-            App.get_running_app().show_popup("Error", "Please enter an employee name.")
+            App.get_running_app().show_popup("Error", "Bitte geben Sie einen Mitarbeiter Namen ein.")
             return
         
-        if not tag or tag == "Waiting for scan..." or len(tag) < 4:
-            App.get_running_app().show_popup("Error", "Please scan an RFID tag first.")
+        if not tag or tag == "Warte auf Scan..." or len(tag) < 4:
+            App.get_running_app().show_popup("Error", "Bitte scannen Sie zuerst ein RFID Tag.")
             return
+        normalized_tag = tag.upper()
+        self.tag_id = normalized_tag
         
         try:
-            employee = create_employee(name, tag, is_admin)
+            employee = create_employee(name, normalized_tag, is_admin)
             self.manager.current = 'admin'
-            App.get_running_app().show_popup("Success", f"User {employee.name} created successfully.")
+            App.get_running_app().show_popup("Success", f"Benutzer {employee.name} erfolgreich erstellt.")
             App.get_running_app().rfid.indicate_success()
         except ValueError as e:
             App.get_running_app().show_popup("Validation Error", str(e))
             App.get_running_app().rfid.indicate_error()
         except IntegrityError as e:
-            App.get_running_app().show_popup("Error", f"Tag already registered to another employee.")
+            App.get_running_app().show_popup("Error", f"Tag ist bereits einem anderen Mitarbeiter zugewiesen.")
             App.get_running_app().rfid.indicate_error()
         except Exception as e:
             logger.error(f"Error creating employee: {e}")
-            App.get_running_app().show_popup("Error", f"Failed to create user: {str(e)}")
+            App.get_running_app().show_popup("Error", f"Fehler beim Erstellen des Benutzers: {str(e)}")
             App.get_running_app().rfid.indicate_error()
 
 class WTReportScreen(Screen):
-    report_text = StringProperty("Select an employee and date range to generate a report...")
+    report_text = StringProperty("Wählen Sie einen Mitarbeiter und einen Zeitraum, um einen Bericht zu generieren...")
     selected_employee = ObjectProperty(None, allownone=True)
     
     def on_enter(self):
         """Load employees when screen is entered"""
         self.load_employees()
-        self.report_text = "Select an employee and date range to generate a report..."
+        self.report_text = "Wählen Sie einen Mitarbeiter und einen Zeitraum, um einen Bericht zu generieren..."
         self.selected_employee = None
         if hasattr(self, 'ids') and 'report_display' in self.ids:
             self.ids.report_display.text = self.report_text
@@ -336,7 +311,7 @@ class WTReportScreen(Screen):
     def generate_report(self):
         """Generate WT report for selected employee"""
         if not hasattr(self, 'selected_employee') or self.selected_employee is None:
-            App.get_running_app().show_popup("Error", "Please select an employee first.")
+            App.get_running_app().show_popup("Error", "Bitte wählen Sie zuerst einen Mitarbeiter.")
             return
         
         try:
@@ -350,14 +325,14 @@ class WTReportScreen(Screen):
                     try:
                         start_date = datetime.datetime.strptime(self.ids.start_date_input.text, '%Y-%m-%d').date()
                     except ValueError:
-                        App.get_running_app().show_popup("Error", "Invalid start date format. Use YYYY-MM-DD")
+                        App.get_running_app().show_popup("Error", "Ungültiges Startdatum Format. Verwenden Sie YYYY-MM-DD")
                         return
                 
                 if 'end_date_input' in self.ids and self.ids.end_date_input.text:
                     try:
                         end_date = datetime.datetime.strptime(self.ids.end_date_input.text, '%Y-%m-%d').date()
                     except ValueError:
-                        App.get_running_app().show_popup("Error", "Invalid end date format. Use YYYY-MM-DD")
+                        App.get_running_app().show_popup("Error", "Ungültiges Enddatum Format. Verwenden Sie YYYY-MM-DD")
                         return
             
             # Generate report
@@ -422,6 +397,7 @@ class TimeClockApp(App):
         initialize_db()
         self.rfid = get_rfid_provider(self.on_rfid_scan, use_mock=False) # Attempt real, fallback to mock
         self.rfid.start()
+        self._recent_scan_times = {}
         
         # Load KV
         self.root = Builder.load_file('src/timeclock.kv')
@@ -450,6 +426,12 @@ class TimeClockApp(App):
         logger.info(f"Handling scan: {tag_id}")
         
         current_screen = self.root.current
+        now = time.monotonic()
+        last_scan = self._recent_scan_times.get(tag_id)
+        if last_scan and now - last_scan < 1.2:
+            logger.debug("Ignoring duplicate scan for %s", tag_id)
+            return
+        self._recent_scan_times[tag_id] = now
         
         # Check if tag belongs to an existing employee
         existing_employee = get_employee_by_tag(tag_id)
@@ -477,13 +459,13 @@ class TimeClockApp(App):
                 role = "Administrator" if existing_employee.is_admin else "Employee"
                 info = f"Name: {existing_employee.name}\nID: {existing_employee.rfid_tag}\nRole: {role}"
             else:
-                info = f"Tag ID: {tag_id}\nStatus: Unregistered"
+                info = f"Tag ID: {tag_id}\nStatus: Unregistriert"
             
             self.root.get_screen('identify').update_info(info)
             return
 
         if not existing_employee:
-            self.show_popup("Unknown Tag", f"Tag ID: {tag_id}")
+            self.show_popup("Unbekannter Tag", f"Tag ID: {tag_id}")
             return
 
         employee = existing_employee
@@ -498,7 +480,7 @@ class TimeClockApp(App):
         if current_screen == 'timeclock':
             self.perform_clock_action(employee)
         elif current_screen == 'admin':
-            self.show_popup("Admin Mode", "Please switch to Timeclock mode to clock in/out.")
+            self.show_popup("Admin Modus", "Please switch to Timeclock mode to clock in/out.")
 
     def perform_clock_action(self, employee):
         try:
@@ -515,25 +497,44 @@ class TimeClockApp(App):
             self.root.get_screen('timeclock').update_status(msg)
             logger.info(msg)
             self.rfid.indicate_success()
-            if action == 'out':
-                Clock.schedule_once(lambda dt: self.show_today_summary(employee), 0.1)
+            self.last_clocked_employee = employee
+            self._reveal_today_button_panel()
         except Exception as e:
             logger.error(f"Error performing clock action: {e}")
             self.show_popup("Error", f"Failed to record time: {str(e)}")
             self.rfid.indicate_error()
 
-    def show_today_summary(self, employee):
+    def open_today_wt_report(self):
+        employee = getattr(self, 'last_clocked_employee', None)
+        if not employee:
+            self.show_popup("Info", "Please clock in/out before viewing today's report.")
+            return
+        today = datetime.date.today()
+        self.open_wt_report(employee, today, today)
+
+    def edit_today_sessions(self):
+        employee = getattr(self, 'last_clocked_employee', None)
+        if not employee:
+            self.show_popup("Info", "Please clock in/out before editing today's sessions.")
+            return
         today = datetime.date.today()
         report = generate_wt_report(employee, today, today)
-        summary = report.summary
-        sessions = report.daily_sessions
-        popup = TodaySummaryPopup(
-            total_text=summary.get('formatted_total', "00:00"),
-            view_callback=lambda: self.open_wt_report(employee, today, today),
-            edit_callback=lambda: self.open_entry_editor(employee, sessions, lambda: self.show_today_summary(employee))
-        )
+        EntryEditorPopup(employee, report.daily_sessions, on_deleted=lambda: self._reveal_today_button_panel()).open()
+
+    def show_today_report_popup(self):
+        employee = getattr(self, 'last_clocked_employee', None)
+        if not employee:
+            self.show_popup("Info", "Please clock in/out before viewing today's report.")
+            return
+        today = datetime.date.today()
+        report = generate_wt_report(employee, today, today)
+        text = report.to_text()
+        scroll = ScrollView(size_hint=(1, 1))
+        label = Label(text=text, font_size='18sp', halign='left', valign='top', text_size=(480, None))
+        label.bind(texture_size=lambda inst, size: label.setter('height')(inst, size[1]))
+        scroll.add_widget(label)
+        popup = Popup(title="Today's Report", content=scroll, size_hint=(None, None), size=(520, 520))
         popup.open()
-        Clock.schedule_once(lambda dt: popup.dismiss(), 3)
 
     def open_wt_report(self, employee, start_date, end_date):
         screen = self.root.get_screen('wtreport')
@@ -544,12 +545,25 @@ class TimeClockApp(App):
         if not sessions:
             App.get_running_app().show_popup("Info", "No sessions to edit.")
             return
-        editor = EntryEditorPopup(employee, sessions, on_deleted=on_deleted)
+        editor = EntryEditorPopup(employee, sessions, on_deleted=lambda: self._reveal_today_button_panel())
         editor.open()
+
+    def _reveal_today_button_panel(self):
+        screen = self.root.get_screen('timeclock')
+        screen.show_today_buttons = True
+        if hasattr(self, '_today_buttons_event') and self._today_buttons_event:
+            self._today_buttons_event.cancel()
+        self._today_buttons_event = Clock.schedule_once(lambda dt: self._hide_today_button_panel(), 5)
+
+    def _hide_today_button_panel(self):
+        screen = self.root.get_screen('timeclock')
+        screen.show_today_buttons = False
+        self.last_clocked_employee = None
 
     def show_popup(self, title, content):
         popup = Popup(title=title, content=Label(text=content), size_hint=(None, None), size=(400, 200))
         popup.open()
+        Clock.schedule_once(lambda dt: popup.dismiss(), 3)
 
     def on_stop(self):
         self.rfid.stop()

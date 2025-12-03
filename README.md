@@ -1,380 +1,466 @@
-## TimeClock – RFID-Based Working Time Tracker
+# TimeClock
 
-TimeClock is a kiosk-style working time tracker built with **Kivy** and **SQLite (Peewee)**, designed for touch screens and an **RFID reader ([pcProx](https://github.com/micolous/pcprox))**.  
-Employees clock **IN/OUT** with RFID tags, while HR can export data and generate **Working Time (WT) reports** per employee.  
+> **RFID-Based Employee Time Tracking System**
 
-Tested with Raspberry Pi 3 Model B+, official Raspberry Pi Touchscreen and RFIDeas RDR-80582AKU RFID reader.  
-This Project is a fork of [RPI TimeClock Terminal](https://github.com/niclasku/rpi-timeclock-terminal) by [niclasku](https://github.com/niclasku).
+A production-ready kiosk application for workforce time tracking, built with **Python**, **Kivy**, and **SQLite**. Designed for touch-screen environments with RFID badge readers.
+
+---
+
+## Quick Start
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Launch application
+python -m src.main
+```
 
 ---
 
 ## Table of Contents
 
-- [Features Overview](#1-features-overview)
-- [Architecture & Data Model](#2-architecture--data-model)
-- [RFID Flow](#3-rfid-flow)
-- [Clocking Logic](#4-clocking-logic)
-- [Working Time (WT) Reports](#5-working-time-wt-reports)
-- [UI Overview](#6-ui-overview)
-- [Today Summary & Entry Editor](#7-today-summary--entry-editor)
-- [Running the Application](#8-running-the-application)
-- [Testing & Debugging](#9-testing--debugging)
-- [Extending the System](#10-extending-the-system)
-
-## 1. Features Overview
-
-- **RFID-based time tracking**
-  - Uses a `PcProx` RFID reader (via `libraries/pcprox.py`)
-  - Background thread polls the reader and calls into the UI on each scan
-  - Mock provider available for development/testing without hardware
-
-- **Screens / Workflows**
-  - `TimeClockScreen`
-    - Default kiosk screen
-    - Shows current status (e.g. “Clocked IN/OUT – Alice”)
-    - RFID scan:
-      - Normal employee → toggles IN/OUT and creates a `TimeEntry`
-      - Admin tag → switches to the admin screen
-      - Unknown tag → shows “Unknown Tag” popup
-  - `AdminScreen`
-    - Register new users
-    - Identify tags
-    - Open WT Reports
-    - Export all raw time entries to CSV
-  - `RegisterScreen`
-    - Register employees with:
-      - Name
-      - RFID tag
-      - Admin flag
-    - First user must be an admin (enforced)
-  - `IdentifyScreen`
-    - Scan a tag to see:
-      - Employee name
-      - Tag ID
-      - Role (Admin / Employee)
-  - `WTReportScreen`
-    - HR-focused “Working Time Report” per employee
-    - Optional date range
-    - Shows daily sessions and totals
-    - Exportable to CSV
-  - Today summary overlay
-    - After each clock-out an overlay shows “Total worked today” for ~3s
-    - Overlay exposes buttons to view the WT report or launch the entry editor
-    - Entry editor lets the admin soft-delete duplicate clock-ins/outs
-
-- **Database**
-  - SQLite (`timeclock.db`) via Peewee ORM
-  - `Employee` table
-  - `TimeEntry` table
-  - Helper functions for initialization, queries and creation
+1. [Overview](#overview)
+2. [Features](#features)
+3. [System Requirements](#system-requirements)
+4. [Installation](#installation)
+5. [Configuration](#configuration)
+6. [Architecture](#architecture)
+7. [Database Schema](#database-schema)
+8. [User Guide](#user-guide)
+9. [Working Time Reports](#working-time-reports)
+10. [Export & Data Management](#export--data-management)
+11. [Development](#development)
+12. [Troubleshooting](#troubleshooting)
+13. [License](#license)
 
 ---
 
-## 2. Architecture & Data Model
+## Overview
 
-### 2.1 Modules
+TimeClock is a self-service time tracking terminal that enables employees to clock in and out using RFID badges. Built for reliability and simplicity, it's ideal for manufacturing floors, warehouses, offices, and any environment requiring accurate attendance records.
 
-- `src/main.py`
-  - Kivy `App` and all Screens
-  - RFID event routing and UI logic
-- `src/timeclock.kv`
-  - Kivy language UI definitions for all screens
-- `src/database.py`
-  - Peewee models: `Employee`, `TimeEntry`
-  - DB helpers: `initialize_db`, `close_db`, `create_employee`, `create_time_entry`, …
-- `src/rfid.py`
-  - `RFIDProvider` base class (threaded)
-  - `PcProxRFIDProvider` for real hardware
-  - `MockRFIDProvider` for development
-- `src/wt_report.py`
-  - `WorkingTimeReport` class + helper to generate/export per-employee WT reports
-- `libraries/*.py`
-  - Low-level pcProx protocol handling
+**Key Highlights:**
 
-### 2.2 Database Schema (Peewee)
+- 🏷️ RFID badge authentication
+- 📊 Real-time working time reports
+- 📱 Touch-optimized interface
+- 💾 Local SQLite database
+- 📤 CSV export functionality
+- 🔒 Role-based access (Admin/Employee)
 
-Employee
---------
-id          : AutoField (PK)
-name        : CharField, max_length=100, NOT NULL
-rfid_tag    : CharField, max_length=50, UNIQUE, indexed, NOT NULL
-is_admin    : BooleanField, default False, NOT NULL
-created_at  : DateTimeField, default now, NOT NULL
-active      : BooleanField, default True (soft delete)
-
-TimeEntry
----------
-id          : AutoField (PK)
-employee    : ForeignKeyField → Employee (CASCADE)
-timestamp   : DateTimeField, indexed, default now, NOT NULL
-action      : CharField, max_length=10, values: 'in' | 'out'
-active      : BooleanField, default True (soft delete)
-
-Key helpers in `database.py`:
-
-- `initialize_db()` / `close_db()`
-- `get_employee_by_tag(tag_id)`
-- `get_all_employees(include_inactive=False)`
-- `get_admin_count()`
-- `create_employee(name, rfid_tag, is_admin)`
-- `create_time_entry(employee, action)`
-- `get_time_entries_for_export()`
+**Tested Hardware:**
+- Raspberry Pi 3 Model B+
+- Official Raspberry Pi Touch Display (7")
+- RFIDeas pcProx Plus (RDR-80582AKU)
 
 ---
 
-## 3. RFID Flow
+## Features
 
-### 3.1 Provider Selection
+### Core Functionality
 
-from rfid import get_rfid_provider
+| Feature | Description |
+|---------|-------------|
+| **Clock In/Out** | Toggle attendance state with a single badge scan |
+| **Session Tracking** | Automatic pairing of clock-in/out events into work sessions |
+| **Working Time Reports** | Per-employee reports with daily/weekly/monthly breakdowns |
+| **CSV Export** | Export raw entries or formatted reports for payroll integration |
+| **Soft Delete** | Remove erroneous entries while preserving audit trail |
 
-self.rfid = get_rfid_provider(self.on_rfid_scan, use_mock=False)
-self.rfid.start()- `use_mock=False` → try real `PcProxRFIDProvider`, fallback to `MockRFIDProvider` if hardware / `hid` is not available.
+### Access Control
 
-### 3.2 End-to-End Flow
+| Role | Capabilities |
+|------|--------------|
+| **Employee** | Clock in/out, view personal today summary |
+| **Admin** | All employee capabilities + user management, reports, exports |
 
-RFID Reader → PcProxRFIDProvider._loop()
-           → callback(tag_id)
-           → TimeClockApp.on_rfid_scan(tag_id)
-           → schedule handle_scan(tag_id) on Kivy main thread
-           → handle_scan() routes based on current screenPer-screen behavior in `handle_scan(tag_id)`:
+### User Experience
 
-- **`register` screen**
-  - Existing tag:
-    - Admin tag:
-      - If at least one admin exists → go to Admin screen
-      - Else → show error (can’t reuse tag for first admin)
-    - Non-admin tag:
-      - Show “Tag already assigned to X”
-  - New tag:
-    - Sets `RegisterScreen.tag_id` (uppercased)
-    - Triggers green LED feedback
-
-- **`identify` screen**
-  - Existing tag:
-    - Shows employee name, tag ID and role
-  - Unknown tag:
-    - Shows “Tag ID: … / Status: Unregistered”
-
-- **`timeclock` screen**
-  - Unknown tag:
-    - “Unknown Tag” popup
-  - Admin tag:
-    - Switch to Admin screen
-  - Normal employee:
-    - Calls `perform_clock_action(employee)`
+- **Today Summary**: Brief overlay after each clock action showing total hours worked
+- **Quick Edit**: 5-second action window to view/edit sessions after clocking
+- **Instant Feedback**: LED indicators confirm successful/failed operations
+- **On-Screen Keyboard**: Full touch support for data entry
 
 ---
 
-## 4. Clocking Logic
+## System Requirements
 
-### 4.1 Clock Action
+### Hardware
 
-`TimeClockApp.perform_clock_action(employee)`:
+- Raspberry Pi 3B+ or higher (recommended) or any Linux system
+- Touch display (800×480 minimum)
+- RFID reader: RFIDeas pcProx or compatible HID device
 
-1. Looks up last `TimeEntry` for this employee:
-   - `TimeEntry.get_last_for_employee(employee)`
-2. Sets `action`:
-   - If last action was `'in'` → new action `'out'`
-   - Else → new action `'in'`
-3. Calls `create_time_entry(employee, action)` (atomic DB transaction)
-4. Updates `TimeClockScreen.status_message`
-5. Signals success via RFID LEDs
+### Software
 
-### 4.2 Employee Registration
-
-`RegisterScreen.save_user()`:
-
-1. Reads:
-   - Name from Kivy `TextInput`
-   - Tag from `RegisterScreen.tag_id` (set by RFID scan)
-   - Admin flag from checkbox
-2. Validates:
-   - Non-empty name
-   - Tag set and at least 4 characters, not just “Waiting for scan…”
-3. Calls `create_employee(name, tag, is_admin)`
-4. On success:
-   - Switches to Admin screen
-   - Shows success popup
-   - Signals success on RFID
-
-First-time setup:
-
-- If `get_admin_count() == 0` on startup:
-  - Force navigation to `RegisterScreen`
-  - Force admin checkbox checked+disabled
-  - Require first user to be an admin
+| Dependency | Version | Purpose |
+|------------|---------|---------|
+| Python | ≥3.8 | Runtime |
+| Kivy | ≥2.0 | GUI framework |
+| Peewee | ≥3.15 | ORM for SQLite |
+| hidapi | ≥0.12 | RFID communication |
 
 ---
 
-## 5. Working Time (WT) Reports
+## Installation
 
-### 5.1 Purpose
+### 1. Clone Repository
 
-The **WT Report** system gives HR a **per-employee** overview:
+```bash
+git clone https://github.com/your-org/TimeClock.git
+cd TimeClock
+```
 
-- Daily sessions (clock-in / clock-out pairs)
-- Hours worked per session and per day
-- Total hours for a period
-- Average hours per day
-- Optional date range (e.g. a month)
-- Exportable to CSV
+### 2. Create Virtual Environment (Recommended)
 
-### 5.2 `WorkingTimeReport` class
+```bash
+python -m venv venv
+source venv/bin/activate
+```
 
-Defined in `src/wt_report.py`:
-
-- Construction:
-
-from wt_report import WorkingTimeReport
-
-report = WorkingTimeReport(employee, start_date=None, end_date=None)
-data = report.generate()- Key responsibilities:
-  - Query all `TimeEntry` rows for an employee in a date range
-  - Group entries by day
-  - Pair `'in'` → `'out'` events into sessions
-  - Compute duration per session and per day
-  - Summarize totals
-  - Provide:
-    - `to_csv(filename=None)` → CSV path
-    - `to_text()` → formatted multiline string for UI display
-
-**Session pairing rules:**
-
-- For each day:
-  - `'in'` followed by `'out'` → one session
-  - Multiple pairs per day are supported
-  - If:
-    - There is an `'out'` without a previous `'in'` → warn and skip
-    - There is an `'in'` without a following `'out'` → logged as an open session (not closed in totals)
-
-### 5.3 WTReportScreen (UI)
-
-Defined in:
-- Logic: `WTReportScreen` class in `main.py`
-- Layout: `WTReportScreen` block in `timeclock.kv`
-
-Capabilities:
-
-- **Select employee**
-  - Screen loads all active employees (`get_all_employees`) on enter
-  - Creates a vertical list of buttons:
-    - Label: `Name (TAGID)`
-    - Click → sets selected employee & updates label
-
-- **Date range (optional)**
-  - Two text fields:
-    - Start date: `YYYY-MM-DD`
-    - End date: `YYYY-MM-DD`
-  - If left empty → full history
-
-- **Generate report**
-  - Calls `generate_wt_report(employee, start_date, end_date)`
-  - Validates date format
-  - Renders `report.to_text()` into a scrollable label
-  - Stores `current_report` for export
-
-- **Export to CSV**
-  - Calls `current_report.to_csv()`
-  - Saves into `exports/WT_Report_<Employee>_<from>_<to>.csv`
-  - Shows popup with saved filename
-
----
-
-## 6. UI Overview
-
-All screens are defined in `src/timeclock.kv`:
-
-- `WindowManager` – root `ScreenManager`:
-  - `TimeClockScreen`
-  - `AdminScreen`
-  - `RegisterScreen`
-  - `IdentifyScreen`
-  - `WTReportScreen`
-
-- **Styling:**
-  - Global `<Button>` and `<Label>` defaults for consistent font sizes
-  - Screen-specific layouts use `BoxLayout`, `GridLayout`, and `ScrollView`
-  - Admin and WTReport screens are scrollable to work well on small displays
-
----
-
-## 7. Today Summary & Entry Editor
-
-- After each **clock-out** we calculate how much time the employee worked today (only active entries).
-- A transient overlay displays “Total worked today” for ~3 seconds and exposes:
-  - **View entries** → jumps to `WTReportScreen` with today pre-filled so HR can review sessions.
-  - **Edit entries** → opens a small editor listing today’s IN/OUT pairs with delete buttons.
-- Deleting a session soft-deletes both `TimeEntry` rows (`active=False`), so the history remains tamper-proof while the UI ignores the removed rows (WT reports, totals, exports).
-- The overlay & editor use the same `WorkingTimeReport` logic that powers the HR reports, keeping the UX consistent.
-
-## 8. Running the Application
-
-### 8.1 Requirements
-
-See `requirements.txt` for a definitive list. Core dependencies:
-
-- Python 3.x
-- `kivy`
-- `peewee`
-- `hid` (for real RFID hardware; optional if using mock)
-
-Install (example):
+### 3. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 8.2 Start TimeClock
-
-From the project root:
+### 4. First Run
 
 ```bash
 python -m src.main
 ```
 
-On first run:
-
-- Database `timeclock.db` is created if it does not exist.
-- No admin present → app forces you to register the first **Admin** user.
+On first launch, you'll be prompted to register an **administrator**. This step cannot be skipped.
 
 ---
 
-## 8.3 Export Destinations
+## Configuration
 
-- When exporting CSVs (admin export button or WT report), the system prefers any mounted USB stick under `/media`, `/run/media`, or `/mnt`.
-- If no USB is available it falls back to the local `exports/` directory inside the project root.
-- Override the destination with `TIME_CLOCK_EXPORT_PATH` (e.g. `export TIME_CLOCK_EXPORT_PATH=/mnt/pendrive`) before launching the app.
+### RFID Provider
+
+The application automatically detects RFID hardware. If unavailable, it falls back to a mock provider for development.
+
+```python
+# src/main.py - Force mock mode for testing
+self.rfid = get_rfid_provider(self.on_rfid_scan, use_mock=True)
+```
+
+### Export Directory
+
+By default, exports are saved to `./exports/`. Override with an environment variable:
+
+```bash
+export TIME_CLOCK_EXPORT_PATH=/mnt/usb
+python -m src.main
+```
+
+**Auto-Detection**: The system scans `/media`, `/run/media`, and `/mnt` for mounted USB drives and uses them automatically.
+
+### Keyboard Mode
+
+The virtual keyboard is configured for docked mode (always visible when focused):
+
+```python
+# src/main.py
+Config.set('kivy', 'keyboard_mode', 'dock')
+```
 
 ---
 
-## 9. Testing & Debugging
+## Architecture
 
-- **Mock RFID**
-  - In `TimeClockApp.build()`, `get_rfid_provider(self.on_rfid_scan, use_mock=False)` can be called with `use_mock=True` during development.
-  - You can also use the “Simulate Tag Scan (Debug)” button on the TimeClock screen.
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      TimeClock Application                  │
+├─────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
+│  │    main.py  │  │ timeclock.kv│  │     wt_report.py    │  │
+│  │             │  │             │  │                     │  │
+│  │  App Logic  │◄─┤  UI Layout  │  │  Report Generation  │  │
+│  │  Screens    │  │  Styling    │  │  CSV Export         │  │
+│  └──────┬──────┘  └─────────────┘  └──────────┬──────────┘  │
+│         │                                      │             │
+│         ▼                                      ▼             │
+│  ┌─────────────┐                    ┌─────────────────────┐  │
+│  │  database.py│◄───────────────────┤   export_utils.py   │  │
+│  │             │                    │                     │  │
+│  │  Peewee ORM │                    │  USB Detection      │  │
+│  │  SQLite DB  │                    │  Path Resolution    │  │
+│  └──────┬──────┘                    └─────────────────────┘  │
+│         │                                                    │
+│         ▼                                                    │
+│  ┌─────────────┐                                             │
+│  │   rfid.py   │                                             │
+│  │             │                                             │
+│  │  HID Reader │                                             │
+│  │  Mock Mode  │                                             │
+│  └─────────────┘                                             │
+└─────────────────────────────────────────────────────────────┘
+```
 
-- **Logs**
-  - Logging is configured at `DEBUG` level in `main.py`.
-  - Logs include:
-    - RFID connection / read events
-    - Database initialization and errors
-    - WT report generation and export info
+### Module Responsibilities
 
-- **CSV Export**
-  - Raw time entries export via Admin → “Export CSV”.
-  - WT reports export via WT Report screen → “Export to CSV”.
+| Module | Purpose |
+|--------|---------|
+| `main.py` | Application entry point, screen controllers, event routing |
+| `timeclock.kv` | Declarative UI layout using Kivy language |
+| `database.py` | Data models, queries, transaction management |
+| `rfid.py` | RFID hardware abstraction, background polling |
+| `wt_report.py` | Working time calculations, report formatting |
+| `export_utils.py` | Export path resolution, USB detection |
 
 ---
 
-## 10. Extending the System
+## Database Schema
 
-Some ideas for future extensions:
+### Employee
 
-- Overtime calculation and highlighting
-- Absence / vacation integration
-- Weekly / monthly aggregated overviews
-- Role-based access (separate HR vs Admin vs Employee views)
-- REST API for integration with payroll systems
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | INTEGER | PRIMARY KEY, AUTOINCREMENT |
+| `name` | VARCHAR(100) | NOT NULL |
+| `rfid_tag` | VARCHAR(50) | UNIQUE, NOT NULL, INDEXED |
+| `is_admin` | BOOLEAN | DEFAULT FALSE |
+| `created_at` | DATETIME | DEFAULT CURRENT_TIMESTAMP |
+| `active` | BOOLEAN | DEFAULT TRUE |
 
-The current architecture (clear separation of **RFID**, **DB**, **UI**, and **reporting**) is intended to make such extensions straightforward.
+### TimeEntry
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | INTEGER | PRIMARY KEY, AUTOINCREMENT |
+| `employee_id` | INTEGER | FOREIGN KEY → Employee |
+| `timestamp` | DATETIME | NOT NULL, INDEXED |
+| `action` | VARCHAR(10) | 'in' or 'out' |
+| `active` | BOOLEAN | DEFAULT TRUE |
+
+**Note**: The `active` column enables soft deletion—entries are hidden from reports without losing audit history.
+
+---
+
+## User Guide
+
+### Initial Setup
+
+1. Launch the application
+2. Register the first administrator (mandatory)
+3. Admin badge + PIN unlocks management functions
+
+### Daily Workflow
+
+```
+Employee Scans Badge
+        │
+        ▼
+┌───────────────────┐
+│ System identifies │
+│ employee by RFID  │
+└────────┬──────────┘
+         │
+         ▼
+┌───────────────────┐     ┌───────────────────┐
+│ Last action: OUT? │─Yes─▶│ Create: CLOCK IN  │
+└────────┬──────────┘     └───────────────────┘
+         │ No
+         ▼
+┌───────────────────┐
+│ Create: CLOCK OUT │
+└───────────────────┘
+```
+
+### Admin Functions
+
+Access the admin panel by scanning an admin badge:
+
+- **Register User**: Add new employees with RFID badges
+- **Identify Tag**: Scan any badge to see its assignment
+- **WT Reports**: Generate per-employee working time reports
+- **Export CSV**: Download raw time entries
+
+### Today Summary
+
+After each clock action, employees see a brief overlay:
+
+- Total hours worked today
+- Quick buttons to view/edit sessions (visible for 5 seconds)
+- Useful for catching duplicate scans immediately
+
+---
+
+## Working Time Reports
+
+### Session Pairing Algorithm
+
+The system uses **FIFO (First-In-First-Out)** pairing to match clock events:
+
+```
+Entries (chronological):
+  IN  08:00
+  IN  08:01  ← duplicate scan
+  OUT 12:00
+  OUT 12:01  ← duplicate scan
+  IN  13:00
+  OUT 17:00
+
+Resulting Sessions:
+  Session 1: 08:00 → 12:00 (4h 00m)
+  Session 2: 08:01 → 12:01 (4h 00m)  ← flagged as duplicate
+  Session 3: 13:00 → 17:00 (4h 00m)
+```
+
+Duplicate sessions can be soft-deleted via the entry editor.
+
+### Report Contents
+
+- **Daily Breakdown**: Each day's sessions with start/end times
+- **Duration Calculation**: Hours and minutes per session
+- **Totals**: Daily subtotals, period grand total, daily average
+- **Open Sessions**: Flagged if employee forgot to clock out
+
+### Generating Reports
+
+1. Navigate to **Admin → WT Reports**
+2. Select an employee
+3. (Optional) Set date range
+4. Click **Generate Report**
+5. (Optional) **Export to CSV** for payroll
+
+---
+
+## Export & Data Management
+
+### Export Formats
+
+| Export Type | Contents | Destination |
+|-------------|----------|-------------|
+| Raw Entries | All time entries with timestamps | `TimeEntries_YYYYMMDD.csv` |
+| WT Report | Formatted working time report | `WT_Report_<Name>_<Range>.csv` |
+
+### USB Auto-Export
+
+When a USB drive is connected:
+
+1. System detects mount points (`/media`, `/run/media`, `/mnt`)
+2. Exports are written directly to the USB
+3. Status popup confirms the file path
+
+### Soft Delete
+
+Erroneous entries (double scans) can be removed without losing history:
+
+1. Clock action triggers → 5-second action window
+2. Click **Edit Today's Sessions**
+3. Select entries to remove
+4. Entries marked `active=FALSE` in database
+5. Excluded from all reports and calculations
+
+---
+
+## Development
+
+### Project Structure
+
+```
+TimeClock/
+├── src/
+│   ├── __init__.py
+│   ├── main.py          # Application entry point
+│   ├── database.py      # Data layer
+│   ├── rfid.py          # RFID abstraction
+│   ├── wt_report.py     # Report generation
+│   ├── export_utils.py  # Export utilities
+│   └── timeclock.kv     # UI definitions
+├── libraries/
+│   └── pcprox.py        # Low-level RFID protocol
+├── exports/             # Default export directory
+├── tests/               # Test suite (future)
+├── requirements.txt
+└── README.md
+```
+
+### Running with Mock RFID
+
+For development without hardware:
+
+```python
+# In src/main.py, change:
+self.rfid = get_rfid_provider(self.on_rfid_scan, use_mock=True)
+```
+
+### Logging
+
+Debug logging is enabled by default:
+
+```python
+logging.basicConfig(level=logging.DEBUG)
+```
+
+Log output includes:
+- RFID connection events
+- Database operations
+- Report generation status
+- Export file paths
+
+---
+
+## Troubleshooting
+
+### RFID Not Detected
+
+```
+PROBLEM: "Falling back to MockRFIDProvider"
+SOLUTION: 
+  1. Check USB connection
+  2. Verify permissions: sudo usermod -a -G plugdev $USER
+  3. Create udev rule for device
+```
+
+### Double Character Input
+
+```
+PROBLEM: Keyboard types each letter twice
+SOLUTION: Built-in FilteredTextInput handles this automatically
+```
+
+### Database Locked
+
+```
+PROBLEM: "Database is locked" errors
+SOLUTION:
+  1. Ensure only one instance is running
+  2. Check for crashed background processes: ps aux | grep python
+```
+
+### Export Fails
+
+```
+PROBLEM: Cannot write export file
+SOLUTION:
+  1. Check directory permissions
+  2. Verify USB is mounted read-write
+  3. Set custom path: export TIME_CLOCK_EXPORT_PATH=/path/to/dir
+```
+
+---
+
+## Future Roadmap
+
+- [ ] Overtime calculation and alerts
+- [ ] Break time tracking
+- [ ] REST API for payroll integration
+- [ ] Multi-location support
+- [ ] Biometric authentication option
+- [ ] Mobile companion app
+
+---
+
+## Credits
+
+This project is a fork of [RPI TimeClock Terminal](https://github.com/niclasku/rpi-timeclock-terminal) by [niclasku](https://github.com/niclasku).
+
+---
+
+## License
+
+MIT License. See [LICENSE](LICENSE) for details.
