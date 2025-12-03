@@ -222,12 +222,17 @@ class WorkingTimeReport:
             }
         }
     
-    def to_csv(self, filename: Optional[str] = None) -> str:
+    def to_csv(
+        self,
+        filename: Optional[str] = None,
+        export_root: Optional[str] = None
+    ) -> str:
         """
         Export report to CSV file.
         
         Args:
             filename: Optional filename. If not provided, generates one.
+            export_root: Optional directory where the file should be written.
         
         Returns:
             Path to the generated CSV file
@@ -243,7 +248,8 @@ class WorkingTimeReport:
             end_str = report['end_date'].strftime('%Y%m%d')
             safe_name = "".join(c for c in report['employee'].name if c.isalnum() or c in (' ', '-', '_')).strip()
             safe_name = safe_name.replace(' ', '_')
-            filename = f"exports/WT_Report_{safe_name}_{start_str}_{end_str}.csv"
+            root = export_root or os.path.join(os.getcwd(), 'exports')
+            filename = os.path.join(root, f"WT_Report_{safe_name}_{start_str}_{end_str}.csv")
         
         # Ensure exports directory exists
         os.makedirs(os.path.dirname(filename) if os.path.dirname(filename) else 'exports', exist_ok=True)

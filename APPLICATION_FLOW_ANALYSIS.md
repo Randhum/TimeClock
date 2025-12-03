@@ -187,6 +187,12 @@ export_csv() → get_time_entries_for_export()
 - ✅ Creates exports directory if needed
 - ⚠️ No file locking (could fail if file is open)
 
+### 4.5 Export Destinations
+
+- Export helpers now probe `/media`, `/run/media`, and `/mnt` for mounted USB sticks and write CSVs there when available.
+- The export utilities also respect the `TIME_CLOCK_EXPORT_PATH` environment variable, so the destination can be overridden in scripts or early during boot.
+- If no removable media is present they fall back to the local `exports/` folder, ensuring we never fail just because a stick is missing.
+
 ### 4.4 Soft Delete for Time Entries
 
 - All queries (clock actions, exports, WT reports) only consider `TimeEntry.active == True`

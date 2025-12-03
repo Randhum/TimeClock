@@ -37,6 +37,7 @@ from database import (
 from rfid import get_rfid_provider
 from peewee import IntegrityError
 from wt_report import WorkingTimeReport, generate_wt_report
+from export_utils import get_export_directory
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG)
@@ -186,10 +187,11 @@ class EntryEditorPopup(Popup):
 class AdminScreen(Screen):
     def export_csv(self):
         try:
-            if not os.path.exists('exports'):
-                os.makedirs('exports')
-                
-            filename = f"exports/timeclock_export_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            export_dir = get_export_directory()
+            filename = os.path.join(
+                export_dir,
+                f"timeclock_export_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            )
             
             entries = get_time_entries_for_export()
             entry_count = entries.count()
@@ -385,7 +387,8 @@ class WTReportScreen(Screen):
             return
         
         try:
-            filename = self.current_report.to_csv()
+            export_dir = get_export_directory()
+            filename = self.current_report.to_csv(export_root=export_dir)
             App.get_running_app().show_popup(
                 "Export Success",
                 f"WT Report exported to:\n{filename}"

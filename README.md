@@ -320,14 +320,30 @@ See `requirements.txt` for a definitive list. Core dependencies:
 
 Install (example):
 
-pip install -r requirements.txt### 7.2 Start TimeClock
+```bash
+pip install -r requirements.txt
+```
+
+### 8.2 Start TimeClock
 
 From the project root:
 
-python -m src.mainOn first run:
+```bash
+python -m src.main
+```
+
+On first run:
 
 - Database `timeclock.db` is created if it does not exist.
 - No admin present → app forces you to register the first **Admin** user.
+
+---
+
+## 8.3 Export Destinations
+
+- When exporting CSVs (admin export button or WT report), the system prefers any mounted USB stick under `/media`, `/run/media`, or `/mnt`.
+- If no USB is available it falls back to the local `exports/` directory inside the project root.
+- Override the destination with `TIME_CLOCK_EXPORT_PATH` (e.g. `export TIME_CLOCK_EXPORT_PATH=/mnt/pendrive`) before launching the app.
 
 ---
 
