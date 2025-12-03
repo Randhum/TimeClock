@@ -1,9 +1,10 @@
 ## TimeClock – RFID-Based Working Time Tracker
 
-TimeClock is a kiosk-style working time tracker built with **Kivy** and **SQLite (Peewee)**, designed for touch screens and an **RFID reader (pcProx)**.  
+TimeClock is a kiosk-style working time tracker built with **Kivy** and **SQLite (Peewee)**, designed for touch screens and an **RFID reader (pcProx)[https://github.com/micolous/pcprox]**.  
 Employees clock **IN/OUT** with RFID tags, while HR can export data and generate **Working Time (WT) reports** per employee.  
 
 Tested with Raspberry Pi 3 Model B+, official Raspberry Pi Touchscreen and RFIDeas RDR-80582AKU RFID reader.  
+This Project is a fork of [RPI TimeClock Terminal](https://github.com/niclasku/rpi-timeclock-terminal) by [niclasku](https://github.com/niclasku).
 
 ---
 
