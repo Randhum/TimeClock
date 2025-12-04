@@ -30,15 +30,15 @@ from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.properties import BooleanProperty, ObjectProperty, StringProperty
 
-from database import (
+from .database import (
     initialize_db, close_db, Employee, TimeEntry, db,
     get_employee_by_tag, get_admin_count, create_employee, create_time_entry,
     get_time_entries_for_export, get_all_employees, soft_delete_time_entries
 )
-from rfid import get_rfid_provider
+from .rfid import get_rfid_provider
 from peewee import IntegrityError
-from wt_report import WorkingTimeReport, generate_wt_report
-from export_utils import get_export_directory
+from .wt_report import WorkingTimeReport, generate_wt_report
+from .export_utils import get_export_directory
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG)
@@ -106,56 +106,197 @@ class TimeClockScreen(Screen):
 
 
 class EntryEditorPopup(Popup):
-    def __init__(self, employee, sessions, on_deleted=None, **kwargs):
+    def __init__(self, employee, on_deleted=None, **kwargs):
         super().__init__(
-            title=f"Edit {employee.name} Entries",
-            size_hint=(None, None),
-            size=(520, 420),
+            title=f"Edit {employee.name} - Today's Entries",
+            size_hint=(0.9, 0.85),
             auto_dismiss=False,
             **kwargs
         )
-        self.sessions = sessions or []
+        self.employee = employee
         self.on_deleted = on_deleted
+        self.entries = []
+        self._load_today_entries()
+        self._build_ui()
+    
+    def _load_today_entries(self):
+        """Load all time entries for today"""
+        today = datetime.date.today()
+        start_datetime = datetime.datetime.combine(today, datetime.time.min)
+        end_datetime = datetime.datetime.combine(today, datetime.time.max)
+        
+        self.entries = list(TimeEntry.select().where(
+            TimeEntry.employee == self.employee,
+            TimeEntry.active == True,
+            TimeEntry.timestamp >= start_datetime,
+            TimeEntry.timestamp <= end_datetime
+        ).order_by(TimeEntry.timestamp.asc()))
+        
+        logger.debug(f"[ENTRY_EDITOR] Loaded {len(self.entries)} entries for {self.employee.name}")
+    
+    def _build_ui(self):
+        """Build the UI with all entries"""
         layout = BoxLayout(orientation='vertical', spacing=10, padding=10)
-        notice = Label(text="Delete sessions to fix double entries", size_hint_y=None, height='40dp')
+        
+        # Header
+        notice = Label(
+            text="Tap 'Delete' to remove an entry. Actions will auto-update.",
+            size_hint_y=None,
+            height='35dp',
+            font_size='14sp'
+        )
         layout.add_widget(notice)
-        scroll = ScrollView()
-        grid = GridLayout(cols=1, spacing=10, size_hint_y=None)
+        
+        # Scrollable list of entries
+        scroll = ScrollView(do_scroll_x=False)
+        grid = GridLayout(cols=1, spacing=5, size_hint_y=None)
         grid.bind(minimum_height=grid.setter('height'))
-        for session in self.sessions:
-            clock_in = session.get('clock_in')
-            clock_out = session.get('clock_out')
-            if not clock_in or not clock_out:
-                continue
-            row = BoxLayout(size_hint_y=None, height='60dp', spacing=10)
-            label = Label(
-                text=f"{clock_in.strftime('%H:%M:%S')} → {clock_out.strftime('%H:%M:%S')} ({session['formatted_time']})",
-                halign='left',
-                valign='middle',
-                text_size=(400, None)
+        
+        if not self.entries:
+            no_entries = Label(
+                text="No entries found for today.",
+                size_hint_y=None,
+                height='40dp'
             )
-            label.bind(size=lambda inst, size: label.setter('text_size')(inst, (size[0], None)))
-            delete_btn = Button(text="Delete", size_hint_x=None, width='120dp', background_color=(1, 0.2, 0.2, 1))
-            delete_btn.bind(on_release=lambda inst, sess=session: self._delete_session(sess))
-            row.add_widget(label)
-            row.add_widget(delete_btn)
-            grid.add_widget(row)
+            grid.add_widget(no_entries)
+        else:
+            for entry in self.entries:
+                row = self._create_entry_row(entry)
+                grid.add_widget(row)
+        
         scroll.add_widget(grid)
         layout.add_widget(scroll)
-        close_btn = Button(text="Close", size_hint_y=None, height='50dp')
+        
+        # Close button
+        close_btn = Button(
+            text="Close",
+            size_hint_y=None,
+            height='50dp',
+            background_color=(0.3, 0.6, 0.9, 1)
+        )
         close_btn.bind(on_release=lambda *_: self.dismiss())
         layout.add_widget(close_btn)
+        
         self.content = layout
-
-    def _delete_session(self, session):
-        entry_ids = [session.get('clock_in_entry_id'), session.get('clock_out_entry_id')]
-        entry_ids = [eid for eid in entry_ids if eid]
-        if not entry_ids:
+    
+    def _create_entry_row(self, entry):
+        """Create a row widget for a single entry"""
+        row = BoxLayout(size_hint_y=None, height='55dp', spacing=10, padding=[5, 0, 5, 0])
+        
+        # Timestamp and action label
+        action_color = (0.2, 0.8, 0.2, 1) if entry.action == 'in' else (0.8, 0.2, 0.2, 1)
+        action_text = "IN" if entry.action == 'in' else "OUT"
+        
+        label = Label(
+            text=f"{entry.timestamp.strftime('%H:%M:%S')} - {action_text}",
+            halign='left',
+            valign='middle',
+            text_size=(None, None),
+            size_hint_x=0.7,
+            color=action_color,
+            font_size='16sp',
+            bold=True
+        )
+        
+        # Delete button
+        delete_btn = Button(
+            text="Delete",
+            size_hint_x=0.3,
+            background_color=(0.9, 0.2, 0.2, 1),
+            font_size='14sp'
+        )
+        delete_btn.bind(on_release=lambda inst, e=entry: self._delete_entry(e))
+        
+        row.add_widget(label)
+        row.add_widget(delete_btn)
+        return row
+    
+    def _delete_entry(self, entry):
+        """Delete a single entry and update subsequent actions"""
+        logger.debug(f"[ENTRY_EDITOR] Deleting entry ID={entry.id}, action={entry.action}, time={entry.timestamp}")
+        
+        try:
+            # Soft delete the entry
+            soft_delete_time_entries([entry.id])
+            logger.info(f"[ENTRY_EDITOR] Deleted entry ID={entry.id}")
+            
+            # Reload entries FIRST (without the deleted one)
+            self._load_today_entries()
+            
+            # Update actions for remaining entries if needed
+            self._update_actions_after_deletion()
+            
+            # Call on_deleted callback if provided
+            if self.on_deleted:
+                self.on_deleted()
+            
+            # Close the editor popup FIRST, then navigate
+            app = App.get_running_app()
+            
+            # Close popup and schedule navigation after it's closed
+            self.dismiss()
+            
+            # Use Clock to schedule navigation after popup is fully closed
+            Clock.schedule_once(lambda dt: self._after_delete_cleanup(app), 0.1)
+                
+        except Exception as e:
+            logger.error(f"[ENTRY_EDITOR] Error deleting entry: {e}")
+            App.get_running_app().show_popup("Error", f"Fehler beim Löschen: {str(e)}")
+    
+    def _after_delete_cleanup(self, app):
+        """Called after popup is dismissed to show success and navigate"""
+        app.show_popup("Erfolg", "Eintrag erfolgreich gelöscht")
+        app.root.current = "timeclock"
+    
+    def _update_actions_after_deletion(self):
+        """Update actions for remaining entries to ensure proper IN/OUT alternation"""
+        # Reload entries to get fresh list without deleted entry
+        self._load_today_entries()
+        
+        if not self.entries:
+            logger.debug("[ENTRY_EDITOR] No entries remaining after deletion")
             return
-        soft_delete_time_entries(entry_ids)
-        if self.on_deleted:
-            self.on_deleted()
-        self.dismiss()
+        
+        logger.debug(f"[ENTRY_EDITOR] Updating actions for {len(self.entries)} remaining entries")
+        
+        # Get all entries before today to determine the starting state
+        today = datetime.date.today()
+        start_datetime = datetime.datetime.combine(today, datetime.time.min)
+        
+        last_before_today = TimeEntry.select().where(
+            TimeEntry.employee == self.employee,
+            TimeEntry.active == True,
+            TimeEntry.timestamp < start_datetime
+        ).order_by(TimeEntry.timestamp.desc()).first()
+        
+        # Determine what the next action should be
+        expected_action = 'in'
+        if last_before_today:
+            expected_action = 'out' if last_before_today.action == 'in' else 'in'
+        
+        logger.debug(f"[ENTRY_EDITOR] Starting action should be: {expected_action} (last before today: {last_before_today.action if last_before_today else 'none'})")
+        
+        # Update entries to alternate properly
+        updates_needed = []
+        for entry in self.entries:
+            if entry.action != expected_action:
+                logger.debug(f"[ENTRY_EDITOR] Entry ID={entry.id} at {entry.timestamp.strftime('%H:%M:%S')}: changing from {entry.action} to {expected_action}")
+                updates_needed.append((entry.id, expected_action))
+            # Toggle for next entry
+            expected_action = 'out' if expected_action == 'in' else 'in'
+        
+        # Apply updates
+        if updates_needed:
+            try:
+                with db.atomic():
+                    for entry_id, new_action in updates_needed:
+                        TimeEntry.update(action=new_action).where(TimeEntry.id == entry_id).execute()
+                db.commit()
+                logger.info(f"[ENTRY_EDITOR] Updated {len(updates_needed)} entry actions")
+            except Exception as e:
+                logger.error(f"[ENTRY_EDITOR] Error updating actions: {e}")
+        else:
+            logger.debug("[ENTRY_EDITOR] No action updates needed - entries already in correct order")
 
 class AdminScreen(Screen):
     def export_csv(self):
@@ -241,21 +382,31 @@ class RegisterScreen(Screen):
              self.manager.current = 'admin'
 
     def save_user(self):
-        # Prevent double-save
+        # Prevent double-save with early return
         if self._saving:
             logger.debug("[REGISTER] save_user blocked - already saving")
             return
+        
+        # Check if name_input exists before accessing
+        if not hasattr(self, 'ids') or 'name_input' not in self.ids:
+            logger.error("[REGISTER] name_input not found in ids!")
+            return
+        
         self._saving = True
         
-        name = self.ids.name_input.text.strip()
+        # Get raw text before stripping to debug
+        raw_name = self.ids.name_input.text
+        name = raw_name.strip() if raw_name else ""
         tag = self.tag_id.strip() if self.tag_id else ""
         is_admin = self.ids.admin_checkbox.active
         
-        logger.debug(f"[REGISTER] save_user called: name={name!r}, tag={tag!r}, is_admin={is_admin}")
+        logger.debug(f"[REGISTER] save_user called: raw_name={raw_name!r}, name={name!r}, tag={tag!r}, is_admin={is_admin}")
+        logger.debug(f"[REGISTER] name_input.text={self.ids.name_input.text!r}")
         
         if not name:
-            App.get_running_app().show_popup("Error", "Bitte geben Sie einen Mitarbeiter Namen ein.")
+            logger.warning(f"[REGISTER] Name validation failed: raw_name={raw_name!r}, name={name!r}, len={len(name) if name else 0}")
             self._saving = False
+            App.get_running_app().show_popup("Error", "Bitte geben Sie einen Mitarbeiter Namen ein.")
             return
         
         if not tag or tag == "Warte auf Scan..." or len(tag) < 4:
@@ -270,27 +421,32 @@ class RegisterScreen(Screen):
             employee = create_employee(name, normalized_tag, is_admin)
             logger.debug(f"[REGISTER] Employee created successfully: {employee.name}")
             
+            # Success - reset flag BEFORE clearing form/navigating
+            self._saving = False
+            
             # Clear form and navigate
             self.tag_id = "Warte auf Scan..."
-            self.ids.name_input.text = ""
+            if hasattr(self, 'ids') and 'name_input' in self.ids:
+                self.ids.name_input.text = ""
             self.manager.current = 'admin'
             
             App.get_running_app().show_popup("Success", f"Benutzer {employee.name} erfolgreich erstellt.")
             App.get_running_app().rfid.indicate_success()
         except ValueError as e:
             logger.warning(f"[REGISTER] ValueError: {e}")
+            self._saving = False
             App.get_running_app().show_popup("Validation Error", str(e))
             App.get_running_app().rfid.indicate_error()
         except IntegrityError as e:
             logger.warning(f"[REGISTER] IntegrityError: {e}")
+            self._saving = False
             App.get_running_app().show_popup("Error", f"Tag ist bereits einem anderen Mitarbeiter zugewiesen.")
             App.get_running_app().rfid.indicate_error()
         except Exception as e:
             logger.error(f"[REGISTER] Unexpected error: {e}")
+            self._saving = False
             App.get_running_app().show_popup("Error", f"Fehler beim Erstellen des Benutzers: {str(e)}")
             App.get_running_app().rfid.indicate_error()
-        finally:
-            self._saving = False
 
 class WTReportScreen(Screen):
     report_text = StringProperty("Wählen Sie einen Mitarbeiter und einen Zeitraum, um einen Bericht zu generieren...")
@@ -544,9 +700,10 @@ class TimeClockApp(App):
         if not employee:
             self.show_popup("Info", "Please clock in/out before editing today's sessions.")
             return
-        today = datetime.date.today()
-        report = generate_wt_report(employee, today, today)
-        EntryEditorPopup(employee, report.daily_sessions, on_deleted=lambda: self._reveal_today_button_panel()).open()
+        EntryEditorPopup(
+            employee,
+            on_deleted=lambda: self._reveal_today_button_panel()
+        ).open()
 
     def show_today_report_popup(self):
         employee = getattr(self, 'last_clocked_employee', None)
@@ -556,11 +713,47 @@ class TimeClockApp(App):
         today = datetime.date.today()
         report = generate_wt_report(employee, today, today)
         text = report.to_text()
-        scroll = ScrollView(size_hint=(1, 1))
-        label = Label(text=text, font_size='18sp', halign='left', valign='top', text_size=(480, None))
-        label.bind(texture_size=lambda inst, size: label.setter('height')(inst, size[1]))
+        
+        # Create scrollable content
+        content = BoxLayout(orientation='vertical', spacing=10, padding=10)
+        
+        scroll = ScrollView(
+            size_hint=(1, 1),
+            do_scroll_x=False,
+            bar_width=10
+        )
+        
+        label = Label(
+            text=text,
+            font_size='16sp',
+            halign='left',
+            valign='top',
+            size_hint_y=None,
+            text_size=(460, None),
+            markup=True
+        )
+        # Bind height to texture size for proper scrolling
+        label.bind(texture_size=lambda inst, size: setattr(inst, 'height', size[1]))
+        
         scroll.add_widget(label)
-        popup = Popup(title="Today's Report", content=scroll, size_hint=(None, None), size=(520, 520))
+        content.add_widget(scroll)
+        
+        # Add close button
+        close_btn = Button(
+            text="Schließen",
+            size_hint_y=None,
+            height='50dp',
+            background_color=(0.3, 0.6, 0.9, 1)
+        )
+        content.add_widget(close_btn)
+        
+        popup = Popup(
+            title=f"Tagesbericht - {employee.name}",
+            content=content,
+            size_hint=(0.9, 0.85),
+            auto_dismiss=True
+        )
+        close_btn.bind(on_release=popup.dismiss)
         popup.open()
 
     def open_wt_report(self, employee, start_date, end_date):

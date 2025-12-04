@@ -168,7 +168,8 @@ def create_employee(name, rfid_tag, is_admin=False):
     
     # Ensure database connection is open
     ensure_db_connection()
-        
+    
+    
     try:
         # Use atomic transaction to ensure data integrity
         # db.atomic() automatically commits on successful exit

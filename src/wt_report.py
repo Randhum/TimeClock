@@ -6,7 +6,7 @@ import datetime
 import logging
 from collections import deque
 from typing import List, Dict, Optional, Tuple
-from database import Employee, TimeEntry, ensure_db_connection
+from .database import Employee, TimeEntry, ensure_db_connection
 
 logger = logging.getLogger(__name__)
 
@@ -304,20 +304,19 @@ class WorkingTimeReport:
         report = self.generate()
         lines = []
         
-        lines.append("=" * 15)
+        lines.append("=" * 37)
         lines.append("WORKING TIME REPORT")
-        lines.append("=" * 15)
+        lines.append("=" * 37)
         lines.append(f"Name: {report['employee'].name}")
-        lines.append("")
         
         if not report['daily_sessions']:
             lines.append("No time entries found for this period.")
             return "\n".join(lines)
         
         # Daily sessions
-        lines.append("-" * 60)
+        lines.append("-" * 37)
         lines.append(f"{'Date':<12} {'Clock In':<12} {'Clock Out':<12} {'Hours':<10}")
-        lines.append("-" * 60)
+        lines.append("-" * 37)
         
         for session in report['daily_sessions']:
             lines.append(
@@ -327,17 +326,16 @@ class WorkingTimeReport:
                 f"{session['formatted_time']:<10}"
             )
         
-        lines.append("-" * 60)
+        lines.append("-" * 37)
         
         # Summary
         summary = report['summary']
-        lines.append("")
         lines.append("SUMMARY")
-        lines.append("-" * 60)
+        lines.append("-" * 37)
         lines.append(f"Total Hours Worked: {summary['formatted_total']}")
         lines.append(f"Days Worked: {summary['days_worked']}")
         lines.append(f"Average Hours per Day: {summary['average_hours_per_day']:.2f}")
-        lines.append("=" * 60)
+        lines.append("=" * 37)
         
         return "\n".join(lines)
 

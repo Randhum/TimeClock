@@ -178,116 +178,158 @@ WindowManager:
 # Working Time Report Screen
 <WTReportScreen>:
     name: "wtreport"
+    
     BoxLayout:
-        orientation: "vertical"
-        padding: 20
-        spacing: 20
+        orientation: 'vertical'
         
+        # Fixed Header
         Label:
             text: "Work Time Report"
-            font_size: '36sp'
+            font_size: '26sp'
             size_hint_y: None
-            height: '50dp'
+            height: '40dp'
+            bold: True
         
+        # Scrollable Content Area
         ScrollView:
+            id: main_scroll
+            do_scroll_x: False
+            do_scroll_y: True
+            bar_width: 10
+            scroll_type: ['bars', 'content']
+            
             GridLayout:
                 cols: 1
-                spacing: 15
+                spacing: 8
+                padding: [15, 10, 15, 10]
                 size_hint_y: None
                 height: self.minimum_height
-                padding: 10
+                
+                # Employee selection
+                Label:
+                    text: "Benutzer:"
+                    font_size: '18sp'
+                    size_hint: (1, None)
+                    height: '28dp'
+                    halign: 'left'
+                    text_size: self.size
+                
+                GridLayout:
+                    id: employee_buttons_container
+                    cols: 2
+                    spacing: 5
+                    size_hint: (1, None)
+                    height: self.minimum_height
+                    row_default_height: '50dp'
+                    row_force_default: True
                 
                 Label:
-                    text: "Benutzer auswählen:"
-                    font_size: '24sp'
-                    size_hint_y: None
-                    height: '40dp'
+                    id: employee_label
+                    text: "Kein Benutzer ausgewählt"
+                    font_size: '14sp'
+                    size_hint: (1, None)
+                    height: '22dp'
+                    color: 0.5, 0.5, 0.5, 1
                 
-                # Employee selection buttons (will be populated dynamically)
-                BoxLayout:
-                    id: employee_buttons_container
-                    orientation: "vertical"
+                # Date inputs
+                Label:
+                    text: "Zeitraum:"
+                    font_size: '18sp'
+                    size_hint: (1, None)
+                    height: '28dp'
+                    halign: 'left'
+                    text_size: self.size
+                
+                GridLayout:
+                    cols: 2
+                    spacing: 8
+                    size_hint: (1, None)
+                    height: '45dp'
+                    
+                    Label:
+                        text: "Von:"
+                        font_size: '14sp'
+                        size_hint: (0.2, 1)
+                        halign: 'right'
+                        valign: 'middle'
+                        text_size: self.size
+                    
+                    FilteredTextInput:
+                        id: start_date_input
+                        hint_text: "YYYY-MM-DD"
+                        multiline: False
+                        font_size: '14sp'
+                        size_hint: (0.8, 1)
+                
+                GridLayout:
+                    cols: 2
+                    spacing: 8
+                    size_hint: (1, None)
+                    height: '45dp'
+                    
+                    Label:
+                        text: "Bis:"
+                        font_size: '14sp'
+                        size_hint: (0.2, 1)
+                        halign: 'right'
+                        valign: 'middle'
+                        text_size: self.size
+                    
+                    FilteredTextInput:
+                        id: end_date_input
+                        hint_text: "YYYY-MM-DD"
+                        multiline: False
+                        font_size: '14sp'
+                        size_hint: (0.8, 1)
+                
+                # Buttons
+                GridLayout:
+                    cols: 2
                     spacing: 10
-                    size_hint_y: None
-                    height: self.minimum_height
+                    size_hint: (1, None)
+                    height: '55dp'
+                    
+                    Button:
+                        text: "Erstellen"
+                        font_size: '16sp'
+                        size_hint: (1, 1)
+                        background_color: 0, 0.7, 0, 1
+                        on_release: root.generate_report()
+                    
+                    Button:
+                        text: "CSV"
+                        font_size: '16sp'
+                        size_hint: (1, 1)
+                        background_color: 0, 0.5, 0.9, 1
+                        on_release: root.export_report()
                 
-                    Label:
-                        id: employee_label
-                        text: "Kein Benutzer ausgewählt"
-                        font_size: '20sp'
-                        size_hint_y: None
-                        height: '40dp'
-                        color: 0.7, 0.7, 0.7, 1
-                    
-                    Label:
-                        text: "Zeitraum (Optional - Leerlassen für gesamten Zeitraum):"
-                        font_size: '24sp'
-                        size_hint_y: None
-                        height: '40dp'
-                    
-                    BoxLayout:
-                        orientation: "horizontal"
-                        spacing: 10
-                        size_hint_y: None
-                        height: '60dp'
-                        Label:
-                            text: "Start (YYYY-MM-DD):"
-                            size_hint_x: 0.4
-                            text_size: self.size
-                            halign: 'left'
-                            valign: 'middle'
-                        FilteredTextInput:
-                            id: start_date_input
-                            hint_text: "YYYY-MM-DD"
-                            multiline: False
-                            font_size: '20sp'
-                            size_hint_x: 0.6
-                    
-                    BoxLayout:
-                        orientation: "horizontal"
-                        spacing: 10
-                        size_hint_y: None
-                        height: '60dp'
-                        Label:
-                            text: "Ende (YYYY-MM-DD):"
-                            size_hint_x: 0.4
-                            text_size: self.size
-                            halign: 'left'
-                            valign: 'middle'
-                        FilteredTextInput:
-                            id: end_date_input
-                            hint_text: "YYYY-MM-DD"
-                            multiline: False
-                            font_size: '20sp'
-                            size_hint_x: 0.6
-                    
-                    BoxLayout:
-                        orientation: "horizontal"
-                        spacing: 20
-                        size_hint_y: None
-                        height: '80dp'
-                        Button:
-                            text: "Bericht erstellen"
-                            background_color: 0, 1, 0, 1  # Green
-                            on_release: root.generate_report()
-                        Button:
-                            text: "Zu CSV Exportieren"
-                            background_color: 0, 0.7, 1, 1  # Blue
-                            on_release: root.export_report()
+                # Report display
+                Label:
+                    text: "─── Bericht ───"
+                    font_size: '16sp'
+                    size_hint: (1, None)
+                    height: '25dp'
+                
+                Label:
+                    id: report_display
+                    text: root.report_text
+                    font_size: '12sp'
+                    halign: 'left'
+                    valign: 'top'
+                    text_size: self.width - 10, None
+                    size_hint: (1, None)
+                    height: max(self.texture_size[1], 80) if self.texture_size else 80
+                
+                # Bottom spacer
+                Widget:
+                    size_hint: (1, None)
+                    height: '15dp'
         
-        ScrollView:
-            Label:
-                id: report_display
-                text: root.report_text
-                font_size: '18sp'
-                text_size: self.width, None
-                halign: 'left'
-                valign: 'top'
-                size_hint_y: None
-                height: max(self.texture_size[1] if self.texture_size else 0, 200)
-        
+        # Fixed Footer
         Button:
             text: "Zurück"
-            size_hint_y: None
-            height: '60dp'
+            font_size: '18sp'
+            size_hint: (1, None)
+            height: '50dp'
+            background_color: 0.6, 0.2, 0.2, 1
             on_release: app.root.current = "admin"

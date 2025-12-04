@@ -25,14 +25,15 @@ python -m src.main
 3. [System Requirements](#system-requirements)
 4. [Installation](#installation)
 5. [Configuration](#configuration)
-6. [Architecture](#architecture)
-7. [Database Schema](#database-schema)
-8. [User Guide](#user-guide)
-9. [Working Time Reports](#working-time-reports)
-10. [Export & Data Management](#export--data-management)
-11. [Development](#development)
-12. [Troubleshooting](#troubleshooting)
-13. [License](#license)
+6. [Deployment](#deployment)
+7. [Architecture](#architecture)
+8. [Database Schema](#database-schema)
+9. [User Guide](#user-guide)
+10. [Working Time Reports](#working-time-reports)
+11. [Export & Data Management](#export--data-management)
+12. [Development](#development)
+13. [Troubleshooting](#troubleshooting)
+14. [License](#license)
 
 ---
 
@@ -164,6 +165,192 @@ The virtual keyboard is configured for docked mode (always visible when focused)
 ```python
 # src/main.py
 Config.set('kivy', 'keyboard_mode', 'dock')
+```
+
+---
+
+## Deployment
+
+### Production Setup on Raspberry Pi
+
+For production deployments, TimeClock should run as a systemd service that starts automatically on boot. This ensures reliability, automatic recovery from crashes, and proper integration with the system.
+
+#### Prerequisites
+
+1. **Complete Installation**: Follow the [Installation](#installation) steps, including virtual environment setup
+2. **Desktop Environment**: Ensure the Raspberry Pi boots to desktop (required for Kivy display)
+3. **User Permissions**: The service user must have access to USB devices and display
+
+#### Step 1: Configure USB/RFID Permissions
+
+Add your user to the `plugdev` group to access USB devices:
+
+```bash
+sudo usermod -a -G plugdev $USER
+```
+
+**Optional**: Create a udev rule for persistent RFID reader access:
+
+```bash
+sudo nano /etc/udev/rules.d/99-rfid-reader.rules
+```
+
+Add (adjust vendor ID for your device):
+
+```
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0c27", MODE="0666", GROUP="plugdev"
+```
+
+Reload udev rules:
+
+```bash
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+```
+
+#### Step 2: Create Systemd Service
+
+Create the service file:
+
+```bash
+sudo nano /etc/systemd/system/timeclock.service
+```
+
+**Service Configuration** (adjust paths for your environment):
+
+```ini
+[Unit]
+Description=TimeClock RFID Time Tracking Application
+After=graphical.target network.target
+Wants=graphical.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/TimeClock
+Environment="DISPLAY=:0"
+Environment="XAUTHORITY=/home/pi/.Xauthority"
+Environment="HOME=/home/pi"
+Environment="PATH=/usr/bin:/usr/local/bin:/home/pi/.local/bin"
+ExecStart=/home/pi/TimeClock/venv/bin/python -m src.main
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=graphical.target
+```
+
+**Configuration Notes:**
+
+- **`User`/`Group`**: Replace `pi` with your actual username
+- **`WorkingDirectory`**: Absolute path to your TimeClock project directory
+- **`ExecStart`**: Path to Python in your virtual environment (`venv/bin/python`)
+- **`RestartSec`**: Delay before restarting after failure (10 seconds)
+- **`WantedBy=graphical.target`**: Ensures service starts after desktop is ready
+
+#### Step 3: Enable and Start Service
+
+Reload systemd and enable the service:
+
+```bash
+# Reload systemd daemon
+sudo systemctl daemon-reload
+
+# Enable service (starts on boot)
+sudo systemctl enable timeclock.service
+
+# Start service immediately
+sudo systemctl start timeclock.service
+
+# Verify status
+sudo systemctl status timeclock.service
+```
+
+#### Step 4: Verify Service Operation
+
+Check service logs:
+
+```bash
+# View live logs
+sudo journalctl -u timeclock.service -f
+
+# View last 50 log entries
+sudo journalctl -u timeclock.service -n 50
+
+# View logs since boot
+sudo journalctl -u timeclock.service -b
+```
+
+Expected log output should show:
+- Application initialization
+- RFID provider connection status
+- Database connection established
+- Screen transitions
+
+#### Service Management Commands
+
+| Command | Purpose |
+|---------|---------|
+| `sudo systemctl start timeclock.service` | Start the service |
+| `sudo systemctl stop timeclock.service` | Stop the service |
+| `sudo systemctl restart timeclock.service` | Restart the service |
+| `sudo systemctl status timeclock.service` | Check service status |
+| `sudo systemctl enable timeclock.service` | Enable auto-start on boot |
+| `sudo systemctl disable timeclock.service` | Disable auto-start |
+| `sudo journalctl -u timeclock.service -f` | Follow live logs |
+
+#### Troubleshooting Deployment Issues
+
+**Service fails to start:**
+
+```bash
+# Check detailed error logs
+sudo journalctl -u timeclock.service -n 100 --no-pager
+
+# Verify paths in service file
+cat /etc/systemd/system/timeclock.service
+
+# Test manual execution
+cd /home/pi/TimeClock
+source venv/bin/activate
+python -m src.main
+```
+
+**Display not available:**
+
+- Ensure desktop autologin is enabled: `sudo raspi-config` → Boot Options → Desktop Autologin
+- Verify display: `echo $DISPLAY` (should output `:0`)
+- Check X server: `ps aux | grep Xorg`
+
+**RFID device not detected:**
+
+- Verify USB connection: `lsusb`
+- Check permissions: `ls -l /dev/bus/usb/`
+- Ensure user is in `plugdev` group: `groups $USER`
+- Test manually: `python -c "from src.rfid import get_rfid_provider; print(get_rfid_provider(lambda x: None))"`
+
+**Service restarts continuously:**
+
+- Check application logs for Python errors
+- Verify database file permissions: `ls -l /home/pi/TimeClock/*.db`
+- Ensure virtual environment is complete: `ls -l venv/bin/python`
+
+#### Disabling/Removing Service
+
+To stop and disable the service:
+
+```bash
+sudo systemctl stop timeclock.service
+sudo systemctl disable timeclock.service
+sudo rm /etc/systemd/system/timeclock.service
+sudo systemctl daemon-reload
 ```
 
 ---
