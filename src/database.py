@@ -168,11 +168,7 @@ def create_employee(name, rfid_tag, is_admin=False):
     
     # Ensure database connection is open
     ensure_db_connection()
-    
-    # Check for duplicate tag
-    if get_employee_by_tag(rfid_tag):
-        raise IntegrityError(f"RFID tag {rfid_tag} is already registered")
-    
+        
     try:
         # Use atomic transaction to ensure data integrity
         # db.atomic() automatically commits on successful exit

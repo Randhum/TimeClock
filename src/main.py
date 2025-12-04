@@ -211,11 +211,13 @@ class IdentifyScreen(Screen):
 class RegisterScreen(Screen):
     tag_id = StringProperty("Warte auf Scan...")
     _last_input_time = 0.0
+    _saving = False  # Prevent double-save
     
     def on_enter(self):
         self.tag_id = "Warte auf Scan..."
         self.ids.name_input.text = ""
         self._last_input_time = 0.0
+        self._saving = False
         # If admin setup mode, keep checkbox checked and disabled
         if get_admin_count() == 0:
              self.ids.admin_checkbox.active = True
@@ -239,35 +241,56 @@ class RegisterScreen(Screen):
              self.manager.current = 'admin'
 
     def save_user(self):
+        # Prevent double-save
+        if self._saving:
+            logger.debug("[REGISTER] save_user blocked - already saving")
+            return
+        self._saving = True
+        
         name = self.ids.name_input.text.strip()
         tag = self.tag_id.strip() if self.tag_id else ""
         is_admin = self.ids.admin_checkbox.active
         
+        logger.debug(f"[REGISTER] save_user called: name={name!r}, tag={tag!r}, is_admin={is_admin}")
+        
         if not name:
             App.get_running_app().show_popup("Error", "Bitte geben Sie einen Mitarbeiter Namen ein.")
+            self._saving = False
             return
         
         if not tag or tag == "Warte auf Scan..." or len(tag) < 4:
             App.get_running_app().show_popup("Error", "Bitte scannen Sie zuerst ein RFID Tag.")
+            self._saving = False
             return
         normalized_tag = tag.upper()
         self.tag_id = normalized_tag
         
         try:
+            logger.debug(f"[REGISTER] Calling create_employee({name!r}, {normalized_tag!r}, {is_admin})")
             employee = create_employee(name, normalized_tag, is_admin)
+            logger.debug(f"[REGISTER] Employee created successfully: {employee.name}")
+            
+            # Clear form and navigate
+            self.tag_id = "Warte auf Scan..."
+            self.ids.name_input.text = ""
             self.manager.current = 'admin'
+            
             App.get_running_app().show_popup("Success", f"Benutzer {employee.name} erfolgreich erstellt.")
             App.get_running_app().rfid.indicate_success()
         except ValueError as e:
+            logger.warning(f"[REGISTER] ValueError: {e}")
             App.get_running_app().show_popup("Validation Error", str(e))
             App.get_running_app().rfid.indicate_error()
         except IntegrityError as e:
+            logger.warning(f"[REGISTER] IntegrityError: {e}")
             App.get_running_app().show_popup("Error", f"Tag ist bereits einem anderen Mitarbeiter zugewiesen.")
             App.get_running_app().rfid.indicate_error()
         except Exception as e:
-            logger.error(f"Error creating employee: {e}")
+            logger.error(f"[REGISTER] Unexpected error: {e}")
             App.get_running_app().show_popup("Error", f"Fehler beim Erstellen des Benutzers: {str(e)}")
             App.get_running_app().rfid.indicate_error()
+        finally:
+            self._saving = False
 
 class WTReportScreen(Screen):
     report_text = StringProperty("Wählen Sie einen Mitarbeiter und einen Zeitraum, um einen Bericht zu generieren...")
@@ -335,9 +358,8 @@ class WTReportScreen(Screen):
                         App.get_running_app().show_popup("Error", "Ungültiges Enddatum Format. Verwenden Sie YYYY-MM-DD")
                         return
             
-            # Generate report
+            # Generate report (generate_wt_report already calls generate() internally)
             report = generate_wt_report(self.selected_employee, start_date, end_date)
-            report_data = report.generate()
             
             # Display report
             self.report_text = report.to_text()
@@ -437,19 +459,24 @@ class TimeClockApp(App):
         existing_employee = get_employee_by_tag(tag_id)
 
         if current_screen == 'register':
+            logger.debug(f"[RFID] Register screen - tag={tag_id}, existing_employee={existing_employee}")
             if existing_employee:
                 if existing_employee.is_admin:
                     # Admin tag scanned while registering -> Cancel/Go to Admin
                     if get_admin_count() > 0:
+                        logger.debug("[RFID] Admin tag scanned, switching to admin screen")
                         self.root.current = 'admin'
                     else:
+                        logger.debug("[RFID] Admin tag but no admins exist - error")
                         self.show_popup("Error", "This tag is already an Admin. Please use a new tag for the initial Admin.")
                         self.rfid.indicate_error()
                 else:
-                     self.show_popup("Error", f"Tag already assigned to {existing_employee.name}")
-                     self.rfid.indicate_error()
+                    logger.debug(f"[RFID] Tag already assigned to {existing_employee.name} - showing error")
+                    self.show_popup("Error", f"Tag already assigned to {existing_employee.name}")
+                    self.rfid.indicate_error()
             else:
                 # New tag
+                logger.debug(f"[RFID] New tag detected, setting tag_id to {tag_id.upper()}")
                 self.root.get_screen('register').tag_id = str(tag_id).upper()
                 self.rfid.indicate_success()
             return

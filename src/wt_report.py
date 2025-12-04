@@ -49,6 +49,11 @@ class WorkingTimeReport:
         """
         ensure_db_connection()
         
+        # Reset state to prevent duplicate accumulation on repeated calls
+        self.daily_sessions = []
+        self.total_hours = 0.0
+        self.total_minutes = 0
+        
         # Get all time entries for employee in date range
         entries = self._get_time_entries()
         
@@ -92,7 +97,14 @@ class WorkingTimeReport:
         end_datetime = datetime.datetime.combine(self.end_date, datetime.time.max)
         query = query.where(TimeEntry.timestamp <= end_datetime)
         
-        return list(query)
+        entries = list(query)
+        
+        # DEBUG: Log all fetched entries
+        logger.debug(f"[WT DEBUG] Fetched {len(entries)} entries for {self.employee.name}")
+        for e in entries:
+            logger.debug(f"  ID={e.id} | {e.timestamp} | action={e.action} | active={e.active}")
+        
+        return entries
     
     def _process_entries(self, entries: List[TimeEntry]):
         """Process time entries into daily work sessions"""
@@ -131,9 +143,15 @@ class WorkingTimeReport:
         sessions = []
         pending_ins = deque()
         
+        date_str = entries[0].timestamp.date() if entries else "N/A"
+        logger.debug(f"[WT DEBUG] Processing {len(entries)} entries for date {date_str}")
+        
         for entry in entries:
+            logger.debug(f"  -> Entry ID={entry.id} action={entry.action} ts={entry.timestamp}")
+            
             if entry.action == 'in':
                 pending_ins.append((entry.timestamp, entry.id))
+                logger.debug(f"     Queued IN. Pending queue size: {len(pending_ins)}")
             elif entry.action == 'out':
                 if not pending_ins:
                     logger.warning(f"Clock out without clock in for {self.employee.name} on {entry.timestamp.date()}")
@@ -143,6 +161,8 @@ class WorkingTimeReport:
                 total_seconds = int(duration.total_seconds())
                 hours = total_seconds // 3600
                 minutes = (total_seconds % 3600) // 60
+                
+                logger.debug(f"     Paired: IN(id={clock_in_id}, {clock_in_time}) <-> OUT(id={entry.id}, {entry.timestamp}) = {hours}h{minutes}m")
                 
                 sessions.append({
                     'clock_in': clock_in_time,
@@ -158,6 +178,7 @@ class WorkingTimeReport:
         if pending_ins:
             logger.info(f"{len(pending_ins)} open session(s) for {self.employee.name} remain without a clock-out")
         
+        logger.debug(f"[WT DEBUG] Day {date_str} resulted in {len(sessions)} session(s)")
         return sessions
     
     def _calculate_totals(self):
@@ -283,12 +304,10 @@ class WorkingTimeReport:
         report = self.generate()
         lines = []
         
-        lines.append("=" * 60)
+        lines.append("=" * 15)
         lines.append("WORKING TIME REPORT")
-        lines.append("=" * 60)
-        lines.append(f"Employee: {report['employee'].name}")
-        lines.append(f"Employee ID: {report['employee'].rfid_tag}")
-        lines.append(f"Period: {report['start_date']} to {report['end_date']}")
+        lines.append("=" * 15)
+        lines.append(f"Name: {report['employee'].name}")
         lines.append("")
         
         if not report['daily_sessions']:
