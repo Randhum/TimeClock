@@ -1,4 +1,4 @@
-> Authors Note: This application and docs have been developed mainly through different types of applied AI. To me, this is just a fun project and that technology is just great up to a certain point, so bewware of what you read!
+> RandHum Note: This application and docs have been developed mainly through different types of applied AI. To me, this is just a fun project and that technology is just great up to a certain point, so bewware of what you read!
 
 # TimeClock
 
