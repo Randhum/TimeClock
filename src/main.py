@@ -26,6 +26,7 @@ from kivy.uix.popup import Popup
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.screenmanager import ScreenManager, Screen
 from kivy.uix.textinput import TextInput
+from kivy.uix.widget import Widget
 from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.properties import BooleanProperty, ObjectProperty, StringProperty
@@ -448,23 +449,16 @@ class RegisterScreen(Screen):
             App.get_running_app().show_popup("Error", f"Fehler beim Erstellen des Benutzers: {str(e)}")
             App.get_running_app().rfid.indicate_error()
 
-class WTReportScreen(Screen):
-    report_text = StringProperty("Wählen Sie einen Mitarbeiter und einen Zeitraum, um einen Bericht zu generieren...")
-    selected_employee = ObjectProperty(None, allownone=True)
-    
+# Screen 1: Employee Selection
+class WTReportSelectEmployeeScreen(Screen):
     def on_enter(self):
         """Load employees when screen is entered"""
         self.load_employees()
-        self.report_text = "Wählen Sie einen Mitarbeiter und einen Zeitraum, um einen Bericht zu generieren..."
-        self.selected_employee = None
-        if hasattr(self, 'ids') and 'report_display' in self.ids:
-            self.ids.report_display.text = self.report_text
     
     def load_employees(self):
         """Load list of employees and create selection buttons"""
         try:
             employees = list(get_all_employees(include_inactive=False))
-            self.employees_list = employees
             
             # Clear existing buttons
             if hasattr(self, 'ids') and 'employee_buttons_container' in self.ids:
@@ -476,8 +470,8 @@ class WTReportScreen(Screen):
                     btn = Button(
                         text=f"{employee.name} ({employee.rfid_tag})",
                         size_hint_y=None,
-                        height='60dp',
-                        font_size='20sp'
+                        height='80dp',
+                        font_size='24sp'
                     )
                     # Bind button to select this employee
                     btn.bind(on_release=lambda instance, emp=employee: self.select_employee(emp))
@@ -485,104 +479,432 @@ class WTReportScreen(Screen):
                     
         except Exception as e:
             logger.error(f"Error loading employees: {e}")
-            self.employees_list = []
+    
+    def select_employee(self, employee):
+        """Select an employee and navigate to date selection screen"""
+        app = App.get_running_app()
+        date_screen = app.root.get_screen('wtreport_select_dates')
+        date_screen.selected_employee = employee
+        app.root.current = 'wtreport_select_dates'
+
+# Date Picker Popup - User-friendly calendar-style picker
+class DatePickerPopup(Popup):
+    selected_date = ObjectProperty(None, allownone=True)
+    
+    def __init__(self, current_date=None, on_select=None, **kwargs):
+        super().__init__(**kwargs)
+        self.on_select_callback = on_select
+        self.title = "Datum Auswählen"
+        self.size_hint = (0.75, 0.65)  # Reduced size
+        self.auto_dismiss = False
+        
+        # Use current date or today
+        if current_date is None:
+            current_date = datetime.date.today()
+        
+        self.display_date = current_date  # The month/year being displayed
+        self.selected_day = current_date.day
+        
+        # Create main container
+        main_layout = BoxLayout(orientation='vertical', spacing=10, padding=10)
+        
+        # Header: Month/Year navigation
+        header = BoxLayout(orientation='horizontal', size_hint_y=None, height='50dp', spacing=8)
+        
+        prev_month_btn = Button(
+            text="◀",
+            font_size='24sp',
+            size_hint_x=0.15,
+            background_color=(0.3, 0.5, 0.7, 1)
+        )
+        prev_month_btn.bind(on_release=lambda x: self._change_month(-1))
+        
+        month_year_label = Label(
+            text=f"{self._get_month_name(current_date.month)} {current_date.year}",
+            font_size='20sp',
+            size_hint_x=0.7,
+            bold=True
+        )
+        
+        next_month_btn = Button(
+            text="▶",
+            font_size='24sp',
+            size_hint_x=0.15,
+            background_color=(0.3, 0.5, 0.7, 1)
+        )
+        next_month_btn.bind(on_release=lambda x: self._change_month(1))
+        
+        header.add_widget(prev_month_btn)
+        header.add_widget(month_year_label)
+        header.add_widget(next_month_btn)
+        
+        self.month_year_label = month_year_label
+        main_layout.add_widget(header)
+        
+        # Calendar grid with ScrollView
+        calendar_container = BoxLayout(orientation='vertical', spacing=3, size_hint_y=None)
+        calendar_container.bind(minimum_height=calendar_container.setter('height'))
+        
+        # Day names header
+        day_names = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
+        day_header = GridLayout(cols=7, size_hint_y=None, height='30dp', spacing=2)
+        for day_name in day_names:
+            label = Label(
+                text=day_name,
+                font_size='14sp',
+                bold=True,
+                color=(0.5, 0.5, 0.5, 1)
+            )
+            day_header.add_widget(label)
+        calendar_container.add_widget(day_header)
+        
+        # Days grid
+        days_grid = GridLayout(cols=7, spacing=2, size_hint_y=None)
+        days_grid.bind(minimum_height=days_grid.setter('height'))
+        self.days_grid = days_grid
+        self.day_buttons = []
+        
+        self._update_calendar()
+        calendar_container.add_widget(days_grid)
+        
+        # ScrollView for calendar
+        scroll = ScrollView(
+            size_hint=(1, 1),
+            do_scroll_x=False,
+            do_scroll_y=True,
+            bar_width=8
+        )
+        scroll.add_widget(calendar_container)
+        main_layout.add_widget(scroll)
+        
+        # Quick actions
+        quick_actions = BoxLayout(orientation='horizontal', size_hint_y=None, height='45dp', spacing=8)
+        today_btn = Button(
+            text="Heute",
+            background_color=(0.2, 0.7, 0.3, 1),
+            font_size='16sp'
+        )
+        today_btn.bind(on_release=lambda x: self._select_today())
+        quick_actions.add_widget(today_btn)
+        
+        # Action buttons
+        btn_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height='50dp', spacing=8)
+        ok_btn = Button(
+            text="Auswählen",
+            background_color=(0, 0.7, 0, 1),
+            font_size='18sp'
+        )
+        ok_btn.bind(on_release=lambda x: self._confirm_date())
+        cancel_btn = Button(
+            text="Abbrechen",
+            background_color=(0.7, 0.2, 0.2, 1),
+            font_size='18sp'
+        )
+        cancel_btn.bind(on_release=self.dismiss)
+        btn_layout.add_widget(ok_btn)
+        btn_layout.add_widget(cancel_btn)
+        
+        main_layout.add_widget(quick_actions)
+        main_layout.add_widget(btn_layout)
+        
+        self.content = main_layout
+    
+    def _get_month_name(self, month):
+        """Get German month name"""
+        months = ['', 'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+                  'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember']
+        return months[month]
+    
+    def _change_month(self, delta):
+        """Change displayed month"""
+        year = self.display_date.year
+        month = self.display_date.month + delta
+        
+        if month > 12:
+            month = 1
+            year += 1
+        elif month < 1:
+            month = 12
+            year -= 1
+        
+        self.display_date = datetime.date(year, month, 1)
+        self.month_year_label.text = f"{self._get_month_name(month)} {year}"
+        self._update_calendar()
+    
+    def _select_today(self):
+        """Select today's date"""
+        today = datetime.date.today()
+        self.display_date = today
+        self.selected_day = today.day
+        self.month_year_label.text = f"{self._get_month_name(today.month)} {today.year}"
+        self._update_calendar()
+    
+    def _update_calendar(self):
+        """Update the calendar grid with days"""
+        # Clear existing buttons
+        self.days_grid.clear_widgets()
+        self.day_buttons = []
+        
+        # Get first day of month and number of days
+        first_day = datetime.date(self.display_date.year, self.display_date.month, 1)
+        first_weekday = first_day.weekday()  # 0=Monday, 6=Sunday
+        
+        # Calculate days in month
+        if self.display_date.month == 12:
+            next_month = datetime.date(self.display_date.year + 1, 1, 1)
+        else:
+            next_month = datetime.date(self.display_date.year, self.display_date.month + 1, 1)
+        days_in_month = (next_month - first_day).days
+        
+        # Add empty cells for days before month starts
+        for _ in range(first_weekday):
+            self.days_grid.add_widget(Widget())
+        
+        # Add day buttons
+        today = datetime.date.today()
+        for day in range(1, days_in_month + 1):
+            date = datetime.date(self.display_date.year, self.display_date.month, day)
+            is_today = (date == today)
+            is_selected = (day == self.selected_day)
+            
+            # Determine button color
+            if is_selected:
+                bg_color = (0.2, 0.6, 0.9, 1)  # Blue for selected
+                text_color = (1, 1, 1, 1)
+            elif is_today:
+                bg_color = (0.3, 0.7, 0.3, 1)  # Green for today
+                text_color = (1, 1, 1, 1)
+            else:
+                bg_color = (0.4, 0.4, 0.4, 1)  # Gray for normal
+                text_color = (1, 1, 1, 1)
+            
+            btn = Button(
+                text=str(day),
+                font_size='16sp',
+                background_color=bg_color,
+                color=text_color,
+                size_hint_y=None,
+                height='45dp'
+            )
+            btn.bind(on_release=lambda instance, d=day: self._select_day(d))
+            self.days_grid.add_widget(btn)
+            self.day_buttons.append(btn)
+        
+        # Fill remaining cells to complete grid
+        total_cells = len(self.day_buttons) + first_weekday
+        remaining = (7 - (total_cells % 7)) % 7
+        for _ in range(remaining):
+            self.days_grid.add_widget(Widget())
+    
+    def _select_day(self, day):
+        """Select a day"""
+        self.selected_day = day
+        # Update button colors
+        today = datetime.date.today()
+        for i, btn in enumerate(self.day_buttons):
+            day_num = i + 1
+            date = datetime.date(self.display_date.year, self.display_date.month, day_num)
+            is_today = (date == today)
+            is_selected = (day_num == day)
+            
+            if is_selected:
+                btn.background_color = (0.2, 0.6, 0.9, 1)
+                btn.color = (1, 1, 1, 1)
+            elif is_today:
+                btn.background_color = (0.3, 0.7, 0.3, 1)
+                btn.color = (1, 1, 1, 1)
+            else:
+                btn.background_color = (0.4, 0.4, 0.4, 1)
+                btn.color = (1, 1, 1, 1)
+    
+    def _confirm_date(self):
+        """Confirm date selection"""
+        try:
+            selected_date = datetime.date(
+                self.display_date.year,
+                self.display_date.month,
+                self.selected_day
+            )
+            
+            if self.on_select_callback:
+                self.on_select_callback(selected_date)
+            
+            self.dismiss()
+        except (ValueError, TypeError) as e:
+            App.get_running_app().show_popup("Fehler", f"Ungültiges Datum: {str(e)}")
+
+# Screen 2: Date Range Selection
+class WTReportSelectDatesScreen(Screen):
+    selected_employee = ObjectProperty(None, allownone=True)
+    start_date = ObjectProperty(None, allownone=True)
+    end_date = ObjectProperty(None, allownone=True)
+    
+    def on_enter(self):
+        """Set default dates when screen is entered"""
+        today = datetime.date.today()
+        if not self.start_date:
+            self.start_date = today
+        if not self.end_date:
+            self.end_date = today
+        self._update_date_display()
+    
+    def _update_date_display(self):
+        """Update the date display buttons"""
+        if hasattr(self, 'ids'):
+            if 'start_date_button' in self.ids:
+                if self.start_date:
+                    # Format: "DD.MM.YYYY" (German format)
+                    date_str = self.start_date.strftime('%d.%m.%Y')
+                    self.ids.start_date_button.text = f"Von: {date_str}"
+                else:
+                    self.ids.start_date_button.text = "Von: Datum auswählen"
+            if 'end_date_button' in self.ids:
+                if self.end_date:
+                    date_str = self.end_date.strftime('%d.%m.%Y')
+                    self.ids.end_date_button.text = f"Bis: {date_str}"
+                else:
+                    self.ids.end_date_button.text = "Bis: Datum auswählen"
+    
+    def open_start_date_picker(self):
+        """Open date picker for start date"""
+        DatePickerPopup(
+            current_date=self.start_date or datetime.date.today(),
+            on_select=lambda date: self._on_start_date_selected(date)
+        ).open()
+    
+    def open_end_date_picker(self):
+        """Open date picker for end date"""
+        DatePickerPopup(
+            current_date=self.end_date or datetime.date.today(),
+            on_select=lambda date: self._on_end_date_selected(date)
+        ).open()
+    
+    def _on_start_date_selected(self, date):
+        """Handle start date selection"""
+        self.start_date = date
+        self._update_date_display()
+    
+    def _on_end_date_selected(self, date):
+        """Handle end date selection"""
+        self.end_date = date
+        self._update_date_display()
     
     def generate_report(self):
-        """Generate WT report for selected employee"""
-        if not hasattr(self, 'selected_employee') or self.selected_employee is None:
+        """Generate report and navigate to display screen"""
+        if not self.selected_employee:
             App.get_running_app().show_popup("Error", "Bitte wählen Sie zuerst einen Mitarbeiter.")
             return
         
+        if not self.start_date or not self.end_date:
+            App.get_running_app().show_popup("Error", "Bitte wählen Sie Start- und Enddatum aus.")
+            return
+        
         try:
-            # Get date range from inputs (if they exist)
-            start_date = None
-            end_date = None
+            # Generate report using selected dates
+            report = generate_wt_report(self.selected_employee, self.start_date, self.end_date)
             
-            # Try to get dates from text inputs if they exist
-            if hasattr(self, 'ids'):
-                if 'start_date_input' in self.ids and self.ids.start_date_input.text:
-                    try:
-                        start_date = datetime.datetime.strptime(self.ids.start_date_input.text, '%Y-%m-%d').date()
-                    except ValueError:
-                        App.get_running_app().show_popup("Error", "Ungültiges Startdatum Format. Verwenden Sie YYYY-MM-DD")
-                        return
-                
-                if 'end_date_input' in self.ids and self.ids.end_date_input.text:
-                    try:
-                        end_date = datetime.datetime.strptime(self.ids.end_date_input.text, '%Y-%m-%d').date()
-                    except ValueError:
-                        App.get_running_app().show_popup("Error", "Ungültiges Enddatum Format. Verwenden Sie YYYY-MM-DD")
-                        return
-            
-            # Generate report (generate_wt_report already calls generate() internally)
-            report = generate_wt_report(self.selected_employee, start_date, end_date)
-            
-            # Display report
-            self.report_text = report.to_text()
-            if hasattr(self, 'ids') and 'report_display' in self.ids:
-                self.ids.report_display.text = self.report_text
-                # Update height
-                self.ids.report_display.height = max(self.ids.report_display.texture_size[1] if self.ids.report_display.texture_size else 200, 200)
-            
-            # Store report for export
-            self.current_report = report
-            
-            App.get_running_app().show_popup("Success", "Report generated successfully!")
+            # Navigate to display screen
+            app = App.get_running_app()
+            display_screen = app.root.get_screen('wtreport_display')
+            display_screen.selected_employee = self.selected_employee
+            display_screen.current_report = report
+            display_screen.start_date = self.start_date
+            display_screen.end_date = self.end_date
+            display_screen.update_report_display()
+            app.root.current = 'wtreport_display'
             
         except Exception as e:
             logger.error(f"Error generating report: {e}")
             App.get_running_app().show_popup("Error", f"Failed to generate report: {str(e)}")
     
     def export_report(self):
+        """Export report directly without displaying"""
+        if not self.selected_employee:
+            App.get_running_app().show_popup("Error", "Bitte wählen Sie zuerst einen Mitarbeiter.")
+            return
+        
+        if not self.start_date or not self.end_date:
+            App.get_running_app().show_popup("Error", "Bitte wählen Sie Start- und Enddatum aus.")
+            return
+        
+        try:
+            # Generate and export report using selected dates
+            report = generate_wt_report(self.selected_employee, self.start_date, self.end_date)
+            export_dir = get_export_directory()
+            filename = report.to_csv(export_root=export_dir)
+            
+            # Show success message and return to admin
+            app = App.get_running_app()
+            app.show_popup("Export Erfolgreich", f"WT Report exportiert nach:\n{filename}")
+            Clock.schedule_once(lambda dt: setattr(app.root, 'current', 'admin'), 2.5)
+            
+        except Exception as e:
+            logger.error(f"Error exporting report: {e}")
+            App.get_running_app().show_popup("Error", f"Export fehlgeschlagen: {str(e)}")
+
+# Screen 3: Report Display
+class WTReportDisplayScreen(Screen):
+    selected_employee = ObjectProperty(None, allownone=True)
+    current_report = ObjectProperty(None, allownone=True)
+    start_date = ObjectProperty(None, allownone=True)
+    end_date = ObjectProperty(None, allownone=True)
+    
+    def on_enter(self):
+        """Update report display when screen is entered"""
+        self.update_report_display()
+    
+    def update_report_display(self):
+        """Update the report display label"""
+        if self.current_report and hasattr(self, 'ids') and 'report_display' in self.ids:
+            self.ids.report_display.text = self.current_report.to_text()
+            # Update label height after texture is calculated
+            def update_height(dt):
+                if hasattr(self, 'ids') and 'report_display' in self.ids:
+                    label = self.ids.report_display
+                    if label.texture_size:
+                        label.height = max(label.texture_size[1], 100)
+            Clock.schedule_once(update_height, 0.1)
+    
+    def export_report(self):
         """Export current report to CSV"""
-        if not hasattr(self, 'current_report'):
-            App.get_running_app().show_popup("Error", "Please generate a report first.")
+        if not self.current_report:
+            App.get_running_app().show_popup("Error", "Kein Bericht vorhanden.")
             return
         
         try:
             export_dir = get_export_directory()
             filename = self.current_report.to_csv(export_root=export_dir)
-            App.get_running_app().show_popup(
-                "Export Success",
-                f"WT Report exported to:\n{filename}"
-            )
+            
+            # Show success message and return to admin
+            app = App.get_running_app()
+            app.show_popup("Export Erfolgreich", f"WT Report exportiert nach:\n{filename}")
+            Clock.schedule_once(lambda dt: setattr(app.root, 'current', 'admin'), 2.5)
+            
         except Exception as e:
             logger.error(f"Error exporting report: {e}")
-            App.get_running_app().show_popup("Error", f"Failed to export report: {str(e)}")
-    
-    def select_employee(self, employee):
-        """Select an employee for the report"""
-        self.selected_employee = employee
-        if hasattr(self, 'ids') and 'employee_label' in self.ids:
-            self.ids.employee_label.text = f"Selected: {employee.name}"
-            self.ids.employee_label.color = 0, 1, 0, 1  # Green color
-
-    def prepare_for_report(self, employee, start_date, end_date):
-        self.load_employees()
-        self.select_employee(employee)
-        if hasattr(self, 'ids'):
-            if 'start_date_input' in self.ids:
-                self.ids.start_date_input.text = start_date.strftime('%Y-%m-%d')
-            if 'end_date_input' in self.ids:
-                self.ids.end_date_input.text = end_date.strftime('%Y-%m-%d')
-        self.generate_report()
+            App.get_running_app().show_popup("Error", f"Export fehlgeschlagen: {str(e)}")
 
 class WindowManager(ScreenManager):
     pass
 
 class TimeClockApp(App):
+    # Let Kivy auto-load the KV file by specifying the path
+    # This ensures it's loaded exactly once, preventing the "loaded multiples times" warning
+    # Path is relative to this file's location (src/main.py -> src/timeclock.kv)
+    kv_dir = os.path.dirname(os.path.abspath(__file__))
+    kv_file = os.path.join(kv_dir, 'timeclock.kv')
+    
     def build(self):
+        # Initialize database and RFID before returning root (which is auto-loaded from KV file)
         initialize_db()
         self.rfid = get_rfid_provider(self.on_rfid_scan, use_mock=False) # Attempt real, fallback to mock
         self.rfid.start()
         self._recent_scan_times = {}
         
-        # Load KV
-        self.root = Builder.load_file('src/timeclock.kv')
-        
         # Check if admin exists
         self.check_initial_setup()
         
+        # Root widget is automatically loaded from KV file by Kivy
         return self.root
 
     def check_initial_setup(self):
@@ -757,9 +1079,14 @@ class TimeClockApp(App):
         popup.open()
 
     def open_wt_report(self, employee, start_date, end_date):
-        screen = self.root.get_screen('wtreport')
-        screen.prepare_for_report(employee, start_date, end_date)
-        self.root.current = 'wtreport'
+        """Open WT report with pre-filled employee and dates"""
+        # Navigate to date selection screen with pre-filled data
+        date_screen = self.root.get_screen('wtreport_select_dates')
+        date_screen.selected_employee = employee
+        date_screen.start_date = start_date
+        date_screen.end_date = end_date
+        date_screen._update_date_display()
+        self.root.current = 'wtreport_select_dates'
 
     def open_entry_editor(self, employee, sessions, on_deleted):
         if not sessions:
