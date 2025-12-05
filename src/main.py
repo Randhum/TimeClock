@@ -17,7 +17,6 @@ Config.set('kivy', 'keyboard_layout', 'qwerty')
 
 # Now import Kivy modules
 from kivy.app import App
-from kivy.lang import Builder
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.gridlayout import GridLayout
@@ -29,7 +28,7 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.widget import Widget
 from kivy.clock import Clock
 from kivy.core.window import Window
-from kivy.properties import BooleanProperty, ObjectProperty, StringProperty
+from kivy.properties import ObjectProperty, StringProperty
 
 from .database import (
     initialize_db, close_db, Employee, TimeEntry, db,
@@ -54,7 +53,6 @@ Window.softinput_mode = 'below_target'
 
 class FilteredTextInput(TextInput):
     """TextInput that filters duplicate characters to fix double-typing issue"""
-    _input_counter = 0
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -95,7 +93,6 @@ class FilteredTextInput(TextInput):
 
 class TimeClockScreen(Screen):
     status_message = StringProperty("Ready")
-    show_today_buttons = BooleanProperty(False)
 
     def update_status(self, message):
         self.status_message = message
@@ -251,9 +248,6 @@ class EntryEditorPopup(Popup):
     
     def _update_actions_after_deletion(self):
         """Update actions for remaining entries to ensure proper IN/OUT alternation"""
-        # Reload entries to get fresh list without deleted entry
-        self._load_today_entries()
-        
         if not self.entries:
             logger.debug("[ENTRY_EDITOR] No entries remaining after deletion")
             return
@@ -292,7 +286,6 @@ class EntryEditorPopup(Popup):
                 with db.atomic():
                     for entry_id, new_action in updates_needed:
                         TimeEntry.update(action=new_action).where(TimeEntry.id == entry_id).execute()
-                db.commit()
                 logger.info(f"[ENTRY_EDITOR] Updated {len(updates_needed)} entry actions")
             except Exception as e:
                 logger.error(f"[ENTRY_EDITOR] Error updating actions: {e}")
@@ -352,13 +345,11 @@ class IdentifyScreen(Screen):
 
 class RegisterScreen(Screen):
     tag_id = StringProperty("Warte auf Scan...")
-    _last_input_time = 0.0
     _saving = False  # Prevent double-save
     
     def on_enter(self):
         self.tag_id = "Warte auf Scan..."
         self.ids.name_input.text = ""
-        self._last_input_time = 0.0
         self._saving = False
         # If admin setup mode, keep checkbox checked and disabled
         if get_admin_count() == 0:
@@ -368,13 +359,6 @@ class RegisterScreen(Screen):
              self.ids.admin_checkbox.active = False
              self.ids.admin_checkbox.disabled = False
     
-    def on_textinput_focus(self, instance, value):
-        """Handle focus events to ensure keyboard shows properly"""
-        if value:  # When focused
-            # TextInput automatically requests keyboard when focused
-            # No additional action needed - Kivy handles it
-            pass
-
     def cancel(self):
         if get_admin_count() == 0:
              # Can't cancel initial setup
@@ -1003,19 +987,11 @@ class TimeClockApp(App):
             logger.info(msg)
             self.rfid.indicate_success()
             self.last_clocked_employee = employee
-            self._reveal_today_button_panel()
+            self._reset_clocked_employee_timer()
         except Exception as e:
             logger.error(f"Error performing clock action: {e}")
             self.show_popup("Error", f"Failed to record time: {str(e)}")
             self.rfid.indicate_error()
-
-    def open_today_wt_report(self):
-        employee = getattr(self, 'last_clocked_employee', None)
-        if not employee:
-            self.show_popup("Info", "Please clock in/out before viewing today's report.")
-            return
-        today = datetime.date.today()
-        self.open_wt_report(employee, today, today)
 
     def edit_today_sessions(self):
         employee = getattr(self, 'last_clocked_employee', None)
@@ -1024,7 +1000,7 @@ class TimeClockApp(App):
             return
         EntryEditorPopup(
             employee,
-            on_deleted=lambda: self._reveal_today_button_panel()
+            on_deleted=lambda: self._reset_clocked_employee_timer()
         ).open()
 
     def show_today_report_popup(self):
@@ -1078,33 +1054,14 @@ class TimeClockApp(App):
         close_btn.bind(on_release=popup.dismiss)
         popup.open()
 
-    def open_wt_report(self, employee, start_date, end_date):
-        """Open WT report with pre-filled employee and dates"""
-        # Navigate to date selection screen with pre-filled data
-        date_screen = self.root.get_screen('wtreport_select_dates')
-        date_screen.selected_employee = employee
-        date_screen.start_date = start_date
-        date_screen.end_date = end_date
-        date_screen._update_date_display()
-        self.root.current = 'wtreport_select_dates'
+    def _reset_clocked_employee_timer(self):
+        """Reset timer that clears last_clocked_employee after inactivity"""
+        if hasattr(self, '_employee_timeout_event') and self._employee_timeout_event:
+            self._employee_timeout_event.cancel()
+        self._employee_timeout_event = Clock.schedule_once(lambda dt: self._clear_last_clocked_employee(), 5)
 
-    def open_entry_editor(self, employee, sessions, on_deleted):
-        if not sessions:
-            App.get_running_app().show_popup("Info", "No sessions to edit.")
-            return
-        editor = EntryEditorPopup(employee, sessions, on_deleted=lambda: self._reveal_today_button_panel())
-        editor.open()
-
-    def _reveal_today_button_panel(self):
-        screen = self.root.get_screen('timeclock')
-        screen.show_today_buttons = True
-        if hasattr(self, '_today_buttons_event') and self._today_buttons_event:
-            self._today_buttons_event.cancel()
-        self._today_buttons_event = Clock.schedule_once(lambda dt: self._hide_today_button_panel(), 5)
-
-    def _hide_today_button_panel(self):
-        screen = self.root.get_screen('timeclock')
-        screen.show_today_buttons = False
+    def _clear_last_clocked_employee(self):
+        """Clear last clocked employee after timeout"""
         self.last_clocked_employee = None
 
     def show_popup(self, title, content):
