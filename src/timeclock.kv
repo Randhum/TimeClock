@@ -297,7 +297,7 @@ WindowManager:
                         font_size: '22sp'
                         background_color: 0.2, 0.6, 0.9, 1
                         on_release: root.open_start_date_picker()
-                    
+                
                     DebouncedButton:
                         id: end_date_button
                         text: "Bis:\\nDatum"
@@ -417,7 +417,7 @@ WindowManager:
             pos_hint: {'center_x': 0.5, 'center_y': 0.2}
             
     # Transparent button to catch touch anywhere
-    Button:
+    DebouncedButton:
         background_color: 0, 0, 0, 0
         size_hint: 1, 1
         on_release: app.reset_idle_timer(force_unlock=True)

@@ -114,8 +114,94 @@ class FilteredTextInput(TextInput):
         self._input_counter = 0
         return super().do_backspace(from_undo, mode)
 
+
+class GlobalInputFilter:
+    """
+    Brute-force, app-wide input de-duplicator for all touch events
+    (buttons, VKeyboard keys, etc.). Any touch that lands within
+    a small distance/time window of the previous touch is swallowed.
+    """
+    def __init__(self, window, time_threshold=0.3, distance_threshold=8):
+        self.window = window
+        self.time_threshold = time_threshold
+        self.distance_threshold = distance_threshold
+        self._last_event = None
+
+    def install(self):
+        # Bind to all touch events; returning True stops propagation
+        self.window.bind(on_touch_down=self._filter_touch)
+        self.window.bind(on_touch_move=self._filter_touch)
+        self.window.bind(on_touch_up=self._filter_touch)
+
+    def _filter_touch(self, window, touch):
+        now = time.monotonic()
+        dev = getattr(touch, 'device', '')
+        pos = touch.pos if hasattr(touch, 'pos') else (0, 0)
+
+        if self._last_event:
+            dt = now - self._last_event['time']
+            dx = abs(pos[0] - self._last_event['pos'][0])
+            dy = abs(pos[1] - self._last_event['pos'][1])
+            same_dev = dev == self._last_event['dev']
+            if same_dev and dt < self.time_threshold and dx < self.distance_threshold and dy < self.distance_threshold:
+                return True  # Swallow duplicate
+
+        self._last_event = {'time': now, 'pos': pos, 'dev': dev}
+        return False
+
+class GlobalKeyFilter:
+    """
+    Global de-duplication for keyboard/VKeyboard input (text + function keys).
+    Any identical token (character or key name) within the debounce window is swallowed.
+    """
+    def __init__(self, window, time_threshold=0.25):
+        self.window = window
+        self.time_threshold = time_threshold
+        self._last_token = None  # (token, timestamp)
+
+    def install(self):
+        # Bind both text input and key_down to catch chars and function keys
+        self.window.bind(on_textinput=self._on_textinput)
+        self.window.bind(on_key_down=self._on_key_down)
+        self.window.bind(on_key_up=self._on_key_up)
+
+    def _should_swallow(self, token):
+        now = time.monotonic()
+        if self._last_token:
+            last_tok, last_time = self._last_token
+            if token == last_tok and (now - last_time) < self.time_threshold:
+                return True
+        self._last_token = (token, now)
+        return False
+
+    def _on_textinput(self, window, text):
+        if not text:
+            return False
+        return self._should_swallow(text)
+
+    def _on_key_down(self, window, keycode, scancode, codepoint, modifiers):
+        # keycode is (code, name)
+        name = keycode[1] if keycode and len(keycode) > 1 else str(keycode)
+        token = name or ''
+        # Normalize shift variants to one token to catch duplicate shift presses
+        if name in ('shift', 'lshift', 'rshift', 'capslock'):
+            token = '__SHIFT__'
+        if not token:
+            return False
+        return self._should_swallow(token)
+
+    def _on_key_up(self, window, keycode):
+        # Apply same logic on key_up to catch rapid duplicate ups
+        name = keycode[1] if keycode and len(keycode) > 1 else str(keycode)
+        token = name or ''
+        if name in ('shift', 'lshift', 'rshift', 'capslock'):
+            token = '__SHIFT__'
+        if not token:
+            return False
+        return self._should_swallow(token)
+
 class TimeClockScreen(Screen):
-    status_message = StringProperty("# - Ready - #")
+    status_message = StringProperty("Ready")
 
     def update_status(self, message):
         self.status_message = message
@@ -123,7 +209,7 @@ class TimeClockScreen(Screen):
         Clock.schedule_once(lambda dt: self.set_default_status(), 3)
 
     def set_default_status(self):
-        self.status_message = "# - Ready - #"
+        self.status_message = "Ready"
 
 
 class GreeterPopup(Popup):
@@ -235,7 +321,7 @@ class GreeterPopup(Popup):
     def _get_greeting_filename(self, action, shift, language):
         """Build filename based on action, shift, and language"""
         action_part = 'in' if action == 'in' else 'out'
-        return f'greetings_{action_part}_{shift}_{language}.txt'
+        return f'greetings/greetings_{action_part}_{shift}_{language}.txt'
 
     def _get_random_message(self, filename, default_msg, employee_name):
         """Load a random message from a file, replace [Name] placeholder, or return default if failed"""
@@ -259,7 +345,7 @@ class GreeterPopup(Popup):
             logger.warning(f"Error loading greeting from {filename}: {e}")
         
         # Fallback to general greeting files if specific shift file not found
-        fallback_file = 'greetings_in.txt' if 'in' in filename else 'greetings_out.txt'
+        fallback_file = 'greetings/greetings_in.txt' if 'in' in filename else 'greetings/greetings_out.txt'
         try:
             if os.path.exists(fallback_file):
                 with open(fallback_file, 'r', encoding='utf-8') as f:
@@ -651,7 +737,7 @@ class DatePickerPopup(Popup):
             bold=True
         )
         
-        next_month_btn = DebouncedButton(
+        next_month_btn = Button(
             text=">",
             font_size='30sp',
             size_hint_x=0.2,
@@ -1043,6 +1129,13 @@ class TimeClockApp(App):
         self.rfid.start()
         self._recent_scan_times = {}
         
+        # Global input de-duplication (touch) to suppress double events everywhere
+        self._input_filter = GlobalInputFilter(Window)
+        self._input_filter.install()
+        # Global keyboard/VKeyboard de-duplication (text + function keys)
+        self._key_filter = GlobalKeyFilter(Window)
+        self._key_filter.install()
+
         # Idle Timer Setup
         Clock.schedule_interval(self.check_idle, 1)
         Window.bind(on_motion=self.on_user_activity)
