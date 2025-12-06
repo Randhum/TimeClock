@@ -1,0 +1,11 @@
+Guten Feierabend [Name]!\nDie Morgenschicht ist geschafft –\njetzt kannst du dich erholen!
+Tschüss [Name]!\nDanke für deine Arbeit heute –\nschönen Rest vom Tag!
+[Name], du hast heute wieder alles gegeben!\nJetzt verdienst du deine Pause.
+Bis morgen [Name]!\nErhol dich gut und komm wieder fit zurück!
+[Name], die Morgenschicht ist überstanden.\nJetzt gönn dir was!
+Guten Feierabend [Name]!\nDie Küche ist wieder ruhig –\njetzt gehört die Zeit dir!
+[Name], du hast den Morgen gerockt!\nJetzt kannst du dich entspannen.
+Tschüss [Name]!\nDanke für deine Energie heute –\nmorgen wieder!
+[Name], die Morgenschicht ist geschafft.\nJetzt kannst du dich erholen und geniessen!
+Guten Feierabend [Name]!\nDu hast heute wieder alles gegeben –\njetzt verdienst du deine Freizeit!
+

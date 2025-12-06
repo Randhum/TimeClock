@@ -8,6 +8,7 @@ WindowManager:
     WTReportSelectEmployeeScreen:
     WTReportSelectDatesScreen:
     WTReportDisplayScreen:
+    ScreensaverScreen:
 
 # Global Styles
 <Button>:
@@ -22,6 +23,30 @@ WindowManager:
 
 <Label>:
     font_size: 24
+
+<GreeterPopup>:
+    title: ""
+    separator_height: 0
+    size_hint: 0.8, 0.7
+    background_color: 0, 0, 0, 0.8 # Transparent dark bg
+    
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 20
+        spacing: 10
+        
+        Label:
+            text: root.greeting
+            font_size: '50sp'
+            bold: True
+            color: root.color_theme
+            halign: 'center'
+            
+        Label:
+            text: root.message
+            font_size: '30sp'
+            color: 1, 1, 1, 1
+            halign: 'center'
 
 # TimeClock Main Screen
 <TimeClockScreen>:
@@ -364,3 +389,35 @@ WindowManager:
                 font_size: '20sp'
                 background_color: 0.6, 0.2, 0.2, 1
                 on_release: app.root.current = "admin"
+
+# Screensaver Screen
+<ScreensaverScreen>:
+    name: "screensaver"
+    MatrixRain:
+        id: matrix_bg
+    
+    FloatLayout:
+        Label:
+            text: root.time_str
+            font_size: '120sp'
+            bold: True
+            color: 0, 1, 0, 1
+            pos_hint: {'center_x': 0.5, 'center_y': 0.6}
+            
+        Label:
+            text: root.date_str
+            font_size: '40sp'
+            color: 0, 0.8, 0, 1
+            pos_hint: {'center_x': 0.5, 'center_y': 0.4}
+            
+        Label:
+            text: "Touch to Unlock"
+            font_size: '30sp'
+            color: 0, 0.6, 0, 0.8
+            pos_hint: {'center_x': 0.5, 'center_y': 0.2}
+            
+    # Transparent button to catch touch anywhere
+    Button:
+        background_color: 0, 0, 0, 0
+        size_hint: 1, 1
+        on_release: app.reset_idle_timer(force_unlock=True)

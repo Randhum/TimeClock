@@ -51,6 +51,7 @@ TimeClock is a self-service time tracking terminal that enables employees to clo
 - 💾 Local SQLite database
 - 📤 CSV export functionality
 - 🔒 Role-based access (Admin/Employee)
+- 🤖 Matrix-style screensaver & Friendly greeter
 
 **Tested Hardware:**
 - Raspberry Pi 3 Model B+
@@ -81,6 +82,8 @@ By default, the application is configured to use the `mtdev` (multitouch) provid
 | **Working Time Reports** | Per-employee reports with daily/weekly/monthly breakdowns |
 | **CSV Export** | Export raw entries or formatted reports for payroll integration |
 | **Soft Delete** | Remove erroneous entries while preserving audit trail |
+| **Screensaver** | Power-saving Matrix-style rain effect activates after 60s of idle time |
+| **Greeter** | Friendly popup with random messages upon clock in/out |
 
 ### Access Control
 
@@ -92,6 +95,7 @@ By default, the application is configured to use the `mtdev` (multitouch) provid
 ### User Experience
 
 - **Today Summary**: Brief overlay after each clock action showing total hours worked
+- **Greeter Messages**: Customizable welcome/goodbye messages via text files
 - **Quick Edit**: 5-second action window to view/edit sessions after clocking
 - **Instant Feedback**: LED indicators confirm successful/failed operations
 - **On-Screen Keyboard**: Full touch support for data entry
@@ -150,6 +154,15 @@ On first launch, you'll be prompted to register an **administrator**. This step 
 ---
 
 ## Configuration
+
+### Custom Greeting Messages
+
+You can customize the messages displayed when employees clock in or out by editing the text files in the application root:
+
+- **Clock In Messages**: `greetings_in.txt` - Add one message per line.
+- **Clock Out Messages**: `greetings_out.txt` - Add one message per line.
+
+If these files are missing or empty, default messages will be used.
 
 ### RFID Provider
 

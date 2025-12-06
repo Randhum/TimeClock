@@ -3,6 +3,7 @@ import csv
 import os
 import datetime
 import time
+import random
 
 # IMPORTANT: Config must be set BEFORE importing Kivy modules
 from kivy.config import Config
@@ -45,6 +46,7 @@ from .rfid import get_rfid_provider
 from peewee import IntegrityError
 from .wt_report import WorkingTimeReport, generate_wt_report
 from .export_utils import get_export_directory
+from .screensaver import ScreensaverScreen
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG)
@@ -123,6 +125,158 @@ class TimeClockScreen(Screen):
     def set_default_status(self):
         self.status_message = "# - Ready - #"
 
+
+class GreeterPopup(Popup):
+    greeting = StringProperty("")
+    message = StringProperty("")
+    color_theme = ObjectProperty((0, 1, 0, 1)) # Green for IN, Orange for OUT
+    
+    # Available languages: 'ch' (Schweizerdeutsch), 'de' (Deutsch), 'it' (Italienisch), 'rm' (Rätoromanisch)
+    AVAILABLE_LANGUAGES = ['ch', 'de', 'it', 'rm']
+    
+    def __init__(self, employee, action, **kwargs):
+        super().__init__(**kwargs)
+        self.title = ""
+        self.separator_height = 0
+        self.size_hint = (0.8, 0.6)
+        self.auto_dismiss = True
+        
+        name = employee.name.split()[0] # First name
+        
+        # Determine shift based on current time
+        shift = self._get_shift()
+        
+        # Select language based on entropy (tag_id, time, employee_id, cpu_temp)
+        language = self._select_language(employee)
+        
+        # Build filename based on action, shift, and language
+        filename = self._get_greeting_filename(action, shift, language)
+        
+        if action == 'in':
+            self.greeting = f"Hallo, {name}!"
+            self.message = self._get_random_message(filename, "Gute Schicht!", name)
+            self.color_theme = (0.2, 0.8, 0.2, 1) # Green
+        else:
+            self.greeting = f"Tschüss, {name}!"
+            self.message = self._get_random_message(filename, "Schönen Feierabend!", name)
+            self.color_theme = (1, 0.6, 0, 1) # Orange
+            
+        Clock.schedule_once(self.dismiss, 3)
+
+    def _get_shift(self):
+        """Determine current shift based on time of day"""
+        now = datetime.datetime.now()
+        hour = now.hour
+        
+        # Morning shift: 06:00 - 14:00
+        if 6 <= hour < 14:
+            return 'morning'
+        # Midday shift: 10:00 - 18:00 (overlaps with morning)
+        elif 10 <= hour < 18:
+            # If in overlap (10-14), prefer midday for more variety
+            if 10 <= hour < 14:
+                return 'midday'
+            return 'midday'
+        # Evening shift: 17:00 - end of day
+        elif hour >= 17 or hour < 6:
+            return 'evening'
+        # Default to morning for early hours (0-6)
+        else:
+            return 'morning'
+    
+    def _select_language(self, employee):
+        """Select language randomly based on entropy from tag_id, time, employee_id, and cpu_temp (I hardclocked this cpu hence no freq rate)"""
+        try:
+            # Get tag ID (RFID tag)
+            tag_id = employee.rfid_tag if hasattr(employee, 'rfid_tag') else ''
+            
+            # Get current time components for entropy
+            now = datetime.datetime.now()
+            time_hash = now.hour * 3600 + now.minute * 60 + now.second
+            
+            # Get employee ID
+            employee_id = employee.id if hasattr(employee, 'id') else 0
+            
+            # Get CPU temperature (Raspberry Pi)
+            cpu_temp = self._get_cpu_temperature()
+            
+            # Combine all entropy sources
+            entropy_string = f"{tag_id}{time_hash}{employee_id}{cpu_temp}"
+            
+            # Create hash from combined string
+            entropy_hash = hash(entropy_string)
+            
+            # Use hash to select language deterministically
+            language_index = abs(entropy_hash) % len(self.AVAILABLE_LANGUAGES)
+            selected_language = self.AVAILABLE_LANGUAGES[language_index]
+            
+            logger.debug(f"Language selection: tag={tag_id}, time={time_hash}, emp_id={employee_id}, temp={cpu_temp}, hash={entropy_hash}, lang={selected_language}")
+            
+            return selected_language
+        except Exception as e:
+            logger.warning(f"Error selecting language, using default 'de': {e}")
+            return 'de'  # Default fallback
+    
+    def _get_cpu_temperature(self):
+        """Read CPU temperature from Raspberry Pi thermal zone"""
+        try:
+            # Try Raspberry Pi thermal zone
+            temp_path = '/sys/class/thermal/thermal_zone0/temp'
+            if os.path.exists(temp_path):
+                with open(temp_path, 'r') as f:
+                    temp_millidegrees = int(f.read().strip())
+                    return temp_millidegrees // 1000  # Convert to degrees Celsius
+        except Exception as e:
+            logger.debug(f"Could not read CPU temperature: {e}")
+        
+        # Fallback: use current time in seconds as pseudo-temperature
+        return int(time.time()) % 100
+    
+    def _get_greeting_filename(self, action, shift, language):
+        """Build filename based on action, shift, and language"""
+        action_part = 'in' if action == 'in' else 'out'
+        return f'greetings_{action_part}_{shift}_{language}.txt'
+
+    def _get_random_message(self, filename, default_msg, employee_name):
+        """Load a random message from a file, replace [Name] placeholder, or return default if failed"""
+        # Try specific shift file first
+        try:
+            if os.path.exists(filename):
+                with open(filename, 'r', encoding='utf-8') as f:
+                    # Filter out empty lines, section headers, and comments
+                    lines = []
+                    for line in f:
+                        stripped = line.strip()
+                        # Skip empty lines, section headers (emojis), and time range comments
+                        if stripped and not stripped.startswith('🌅') and not stripped.startswith('☀️') and not stripped.startswith('🌙') and not stripped.startswith('(') and not stripped.startswith('ca.'):
+                            lines.append(stripped)
+                    if lines:
+                        message = random.choice(lines)
+                        # Replace [Name] placeholder with actual employee name
+                        message = message.replace('[Name]', employee_name)
+                        return message
+        except Exception as e:
+            logger.warning(f"Error loading greeting from {filename}: {e}")
+        
+        # Fallback to general greeting files if specific shift file not found
+        fallback_file = 'greetings_in.txt' if 'in' in filename else 'greetings_out.txt'
+        try:
+            if os.path.exists(fallback_file):
+                with open(fallback_file, 'r', encoding='utf-8') as f:
+                    lines = []
+                    for line in f:
+                        stripped = line.strip()
+                        if stripped and not stripped.startswith('🌅') and not stripped.startswith('☀️') and not stripped.startswith('🌙') and not stripped.startswith('(') and not stripped.startswith('ca.'):
+                            lines.append(stripped)
+                    if lines:
+                        message = random.choice(lines)
+                        message = message.replace('[Name]', employee_name)
+                        return message
+        except Exception as e:
+            logger.warning(f"Error loading fallback greeting from {fallback_file}: {e}")
+        
+        # Replace [Name] in default message too
+        return default_msg.replace('[Name]', employee_name) if '[Name]' in default_msg else default_msg
 
 class EntryEditorPopup(Popup):
     def __init__(self, employee, on_deleted=None, **kwargs):
@@ -879,6 +1033,8 @@ class WindowManager(ScreenManager):
     pass
 
 class TimeClockApp(App):
+    idle_seconds = 0
+    MAX_IDLE_SECONDS = 60 # Start screensaver after 60 seconds
 
     def build(self):
         # Initialize database and RFID before returning root (which is auto-loaded from KV file)
@@ -887,11 +1043,46 @@ class TimeClockApp(App):
         self.rfid.start()
         self._recent_scan_times = {}
         
+        # Idle Timer Setup
+        Clock.schedule_interval(self.check_idle, 1)
+        Window.bind(on_motion=self.on_user_activity)
+        
         # Check if admin exists
         self.check_initial_setup()
         
         # Root widget is automatically loaded from KV file by Kivy
         return self.root
+
+    def check_idle(self, dt):
+        """Check if we should start screensaver"""
+        # Don't activate if already screensaver
+        if self.root.current == 'screensaver':
+            return
+            
+        self.idle_seconds += 1
+        if self.idle_seconds >= self.MAX_IDLE_SECONDS:
+            self.start_screensaver()
+
+    def on_user_activity(self, window, etype, motionevent):
+        """Reset idle timer on any touch/mouse movement"""
+        self.reset_idle_timer()
+
+    def reset_idle_timer(self, force_unlock=False):
+        self.idle_seconds = 0
+        if force_unlock or self.root.current == 'screensaver':
+            if self.root.current == 'screensaver':
+                self.stop_screensaver()
+
+    def start_screensaver(self):
+        self.previous_screen = self.root.current
+        self.root.current = 'screensaver'
+
+    def stop_screensaver(self):
+        # Return to timeclock (safe default) or previous screen
+        target = 'timeclock'
+        # If we were in a deeply nested screen, maybe better to reset to home for security?
+        # Stick to timeclock for now.
+        self.root.current = target
 
     def check_initial_setup(self):
         if get_admin_count() == 0:
@@ -909,6 +1100,8 @@ class TimeClockApp(App):
         Clock.schedule_once(lambda dt: self.handle_scan(tag_id), 0)
 
     def handle_scan(self, tag_id):
+        # Reset Idle Timer on every scan
+        self.reset_idle_timer()
         logger.info(f"Handling scan: {tag_id}")
         
         current_screen = self.root.current
@@ -982,6 +1175,9 @@ class TimeClockApp(App):
             
             create_time_entry(employee, action)
             
+            # Show Greeter Popup
+            self.show_greeter(employee, action)
+            
             msg = f"Clocked {action.upper()} - {employee.name}"
             self.root.get_screen('timeclock').update_status(msg)
             logger.info(msg)
@@ -1041,7 +1237,8 @@ class TimeClockApp(App):
             text="Schließen",
             size_hint_y=None,
             height='50dp',
-            background_color=(0.3, 0.6, 0.9, 1)
+            background_color=(0.3, 0.6, 0.9, 1),
+            onclick=lambda: self._reset_clocked_employee_timer()
         )
         content.add_widget(close_btn)
         
@@ -1058,7 +1255,7 @@ class TimeClockApp(App):
         """Reset timer that clears last_clocked_employee after inactivity"""
         if hasattr(self, '_employee_timeout_event') and self._employee_timeout_event:
             self._employee_timeout_event.cancel()
-        self._employee_timeout_event = Clock.schedule_once(lambda dt: self._clear_last_clocked_employee(), 5)
+        self._employee_timeout_event = Clock.schedule_once(lambda dt: self._clear_last_clocked_employee(), 120)
 
     def _clear_last_clocked_employee(self):
         """Clear last clocked employee after timeout"""
@@ -1072,6 +1269,10 @@ class TimeClockApp(App):
     def on_stop(self):
         self.rfid.stop()
         close_db()
+
+    def show_greeter(self, employee, action):
+        """Show a friendly greeting popup"""
+        GreeterPopup(employee, action).open()
 
 if __name__ == '__main__':
     TimeClockApp().run()
