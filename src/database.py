@@ -24,16 +24,6 @@ class Employee(BaseModel):
     
     def __str__(self):
         return f"{self.name} ({self.rfid_tag})"
-    
-    def get_last_entry(self):
-        """Get the last time entry for this employee"""
-        return TimeEntry.select().where(
-            TimeEntry.employee == self
-        ).order_by(TimeEntry.timestamp.desc()).first()
-    
-    def get_total_entries(self):
-        """Get total number of time entries"""
-        return TimeEntry.select().where(TimeEntry.employee == self).count()
 
 class TimeEntry(BaseModel):
     employee = ForeignKeyField(Employee, backref='time_entries', on_delete='CASCADE', null=False)
@@ -57,17 +47,6 @@ class TimeEntry(BaseModel):
             TimeEntry.employee == employee,
             TimeEntry.active == True
         ).order_by(TimeEntry.timestamp.desc()).first()
-
-    @classmethod
-    def active_entries(cls):
-        return cls.select().where(cls.active == True)
-
-    @classmethod
-    def active_for_employee(cls, employee):
-        return cls.select().where(
-            cls.employee == employee,
-            cls.active == True
-        )
 
 def ensure_db_connection():
     """Ensure database connection is open"""
@@ -166,9 +145,7 @@ def create_employee(name, rfid_tag, is_admin=False):
     if not rfid_tag or len(rfid_tag.strip()) < 4:
         raise ValueError("RFID tag must be at least 4 characters")
     
-    # Ensure database connection is open
     ensure_db_connection()
-    
     
     try:
         # Use atomic transaction to ensure data integrity

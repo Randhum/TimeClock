@@ -57,6 +57,17 @@ TimeClock is a self-service time tracking terminal that enables employees to clo
 - Official Raspberry Pi Touch Display (7")
 - RFIDeas pcProx Plus (RDR-80582AKU)
 
+## Input Handling & Touchscreen Optimization
+
+The application implements robust handling for touchscreens, specifically addressing common issues on Raspberry Pi/Linux setups where single taps can be registered as double inputs (due to driver jitter or conflicts with virtual input devices).
+
+### Input Configuration
+By default, the application is configured to use the `mtdev` (multitouch) provider exclusively for touch input, disabling the generic mouse provider to prevent duplicate events.
+
+- **Configuration**: See `src/main.py` for input provider settings.
+- **Debouncing**: All UI buttons use a custom software debounce mechanism (300ms threshold) to filter out rapid-fire hardware glitches.
+- **On-Screen Keyboard**: Kivy's built-in virtual keyboard (`systemanddock` mode) is used. External virtual keyboards like `onboard` should be disabled to prevent conflicts.
+
 ---
 
 ## Features

@@ -71,7 +71,6 @@ class PcProxRFIDProvider(RFIDProvider):
                         logger.info("Reader configured: Keyboard output disabled")
                         
                     except Exception as e:
-                        # logger.debug(f"Waiting for reader: {e}")
                         time.sleep(2)
                         continue
 

@@ -5,7 +5,7 @@ Generates detailed working time reports per employee for HR purposes.
 import datetime
 import logging
 from collections import deque
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional
 from .database import Employee, TimeEntry, ensure_db_connection
 
 logger = logging.getLogger(__name__)
@@ -97,14 +97,7 @@ class WorkingTimeReport:
         end_datetime = datetime.datetime.combine(self.end_date, datetime.time.max)
         query = query.where(TimeEntry.timestamp <= end_datetime)
         
-        entries = list(query)
-        
-        # DEBUG: Log all fetched entries
-        logger.debug(f"[WT DEBUG] Fetched {len(entries)} entries for {self.employee.name}")
-        for e in entries:
-            logger.debug(f"  ID={e.id} | {e.timestamp} | action={e.action} | active={e.active}")
-        
-        return entries
+        return list(query)
     
     def _process_entries(self, entries: List[TimeEntry]):
         """Process time entries into daily work sessions"""
@@ -143,15 +136,9 @@ class WorkingTimeReport:
         sessions = []
         pending_ins = deque()
         
-        date_str = entries[0].timestamp.date() if entries else "N/A"
-        logger.debug(f"[WT DEBUG] Processing {len(entries)} entries for date {date_str}")
-        
         for entry in entries:
-            logger.debug(f"  -> Entry ID={entry.id} action={entry.action} ts={entry.timestamp}")
-            
             if entry.action == 'in':
                 pending_ins.append((entry.timestamp, entry.id))
-                logger.debug(f"     Queued IN. Pending queue size: {len(pending_ins)}")
             elif entry.action == 'out':
                 if not pending_ins:
                     logger.warning(f"Clock out without clock in for {self.employee.name} on {entry.timestamp.date()}")
@@ -161,8 +148,6 @@ class WorkingTimeReport:
                 total_seconds = int(duration.total_seconds())
                 hours = total_seconds // 3600
                 minutes = (total_seconds % 3600) // 60
-                
-                logger.debug(f"     Paired: IN(id={clock_in_id}, {clock_in_time}) <-> OUT(id={entry.id}, {entry.timestamp}) = {hours}h{minutes}m")
                 
                 sessions.append({
                     'clock_in': clock_in_time,
@@ -178,7 +163,6 @@ class WorkingTimeReport:
         if pending_ins:
             logger.info(f"{len(pending_ins)} open session(s) for {self.employee.name} remain without a clock-out")
         
-        logger.debug(f"[WT DEBUG] Day {date_str} resulted in {len(sessions)} session(s)")
         return sessions
     
     def _calculate_totals(self):

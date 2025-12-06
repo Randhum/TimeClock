@@ -9,7 +9,13 @@ from kivy.config import Config
 
 # Raspberry Pi Touchscreen Optimization / Kiosk Mode
 # Disable red dots on touch (multitouch simulation)
-Config.set('input', 'mouse', 'mouse,multitouch_on_demand')
+# Use mtdev for better multitouch handling if available, otherwise standard mouse
+
+# Config: Explicitly use mtdev for touchscreen and disable mouse to prevent double-events
+# This prevents Kivy from adding a "mouse" provider automatically if it detects one
+Config.set('input', 'touch', 'probesysfs,provider=mtdev')
+Config.set('input', 'mouse', '') # Disable default mouse provider
+
 # Enable Kivy's built-in VKeyboard (systemanddock tries system first, then VKeyboard)
 Config.set('kivy', 'keyboard_mode', 'systemanddock')
 # Force VKeyboard layout
@@ -50,6 +56,21 @@ Window.show_cursor = False
 Window.fullscreen = 'auto'
 # Ensure the keyboard doesn't cover the input field by panning the content
 Window.softinput_mode = 'below_target'
+
+class DebouncedButton(Button):
+    """Button that prevents double-clicks (debouncing)"""
+    def on_touch_down(self, touch):
+        if not self.collide_point(*touch.pos):
+            return super().on_touch_down(touch)
+        
+        # Check for rapid successive touches (global debounce)
+        current_time = time.time()
+        if hasattr(self, '_last_touch_time'):
+            if current_time - self._last_touch_time < 0.3:  # 300ms debounce
+                return True # Consume the event without action
+        self._last_touch_time = current_time
+        
+        return super().on_touch_down(touch)
 
 class FilteredTextInput(TextInput):
     """TextInput that filters duplicate characters to fix double-typing issue"""
@@ -92,7 +113,7 @@ class FilteredTextInput(TextInput):
         return super().do_backspace(from_undo, mode)
 
 class TimeClockScreen(Screen):
-    status_message = StringProperty("Ready")
+    status_message = StringProperty("# - Ready - #")
 
     def update_status(self, message):
         self.status_message = message
@@ -100,14 +121,14 @@ class TimeClockScreen(Screen):
         Clock.schedule_once(lambda dt: self.set_default_status(), 3)
 
     def set_default_status(self):
-        self.status_message = "Ready"
+        self.status_message = "# - Ready - #"
 
 
 class EntryEditorPopup(Popup):
     def __init__(self, employee, on_deleted=None, **kwargs):
         super().__init__(
             title=f"Edit {employee.name} - Today's Entries",
-            size_hint=(0.9, 0.85),
+            size_hint=(0.95, 0.95),
             auto_dismiss=False,
             **kwargs
         )
@@ -129,8 +150,6 @@ class EntryEditorPopup(Popup):
             TimeEntry.timestamp >= start_datetime,
             TimeEntry.timestamp <= end_datetime
         ).order_by(TimeEntry.timestamp.asc()))
-        
-        logger.debug(f"[ENTRY_EDITOR] Loaded {len(self.entries)} entries for {self.employee.name}")
     
     def _build_ui(self):
         """Build the UI with all entries"""
@@ -166,7 +185,7 @@ class EntryEditorPopup(Popup):
         layout.add_widget(scroll)
         
         # Close button
-        close_btn = Button(
+        close_btn = DebouncedButton(
             text="Close",
             size_hint_y=None,
             height='50dp',
@@ -197,7 +216,7 @@ class EntryEditorPopup(Popup):
         )
         
         # Delete button
-        delete_btn = Button(
+        delete_btn = DebouncedButton(
             text="Delete",
             size_hint_x=0.3,
             background_color=(0.9, 0.2, 0.2, 1),
@@ -218,11 +237,9 @@ class EntryEditorPopup(Popup):
             soft_delete_time_entries([entry.id])
             logger.info(f"[ENTRY_EDITOR] Deleted entry ID={entry.id}")
             
-            # Reload entries FIRST (without the deleted one)
+            # Reload entries and update actions for remaining entries
             self._load_today_entries()
-            
-            # Update actions for remaining entries if needed
-            self._update_actions_after_deletion()
+            self._update_actions_after_deletion(entry.id)
             
             # Call on_deleted callback if provided
             if self.on_deleted:
@@ -246,51 +263,20 @@ class EntryEditorPopup(Popup):
         app.show_popup("Erfolg", "Eintrag erfolgreich gelöscht")
         app.root.current = "timeclock"
     
-    def _update_actions_after_deletion(self):
-        """Update actions for remaining entries to ensure proper IN/OUT alternation"""
-        if not self.entries:
-            logger.debug("[ENTRY_EDITOR] No entries remaining after deletion")
+    def _update_actions_after_deletion(self, deleted_entry_id):
+        """Flip actions for all entries after the deleted one to maintain IN/OUT alternation"""
+        entries_to_flip = [e for e in self.entries if e.id > deleted_entry_id and e.active]
+        if not entries_to_flip:
             return
         
-        logger.debug(f"[ENTRY_EDITOR] Updating actions for {len(self.entries)} remaining entries")
-        
-        # Get all entries before today to determine the starting state
-        today = datetime.date.today()
-        start_datetime = datetime.datetime.combine(today, datetime.time.min)
-        
-        last_before_today = TimeEntry.select().where(
-            TimeEntry.employee == self.employee,
-            TimeEntry.active == True,
-            TimeEntry.timestamp < start_datetime
-        ).order_by(TimeEntry.timestamp.desc()).first()
-        
-        # Determine what the next action should be
-        expected_action = 'in'
-        if last_before_today:
-            expected_action = 'out' if last_before_today.action == 'in' else 'in'
-        
-        logger.debug(f"[ENTRY_EDITOR] Starting action should be: {expected_action} (last before today: {last_before_today.action if last_before_today else 'none'})")
-        
-        # Update entries to alternate properly
-        updates_needed = []
-        for entry in self.entries:
-            if entry.action != expected_action:
-                logger.debug(f"[ENTRY_EDITOR] Entry ID={entry.id} at {entry.timestamp.strftime('%H:%M:%S')}: changing from {entry.action} to {expected_action}")
-                updates_needed.append((entry.id, expected_action))
-            # Toggle for next entry
-            expected_action = 'out' if expected_action == 'in' else 'in'
-        
-        # Apply updates
-        if updates_needed:
-            try:
-                with db.atomic():
-                    for entry_id, new_action in updates_needed:
-                        TimeEntry.update(action=new_action).where(TimeEntry.id == entry_id).execute()
-                logger.info(f"[ENTRY_EDITOR] Updated {len(updates_needed)} entry actions")
-            except Exception as e:
-                logger.error(f"[ENTRY_EDITOR] Error updating actions: {e}")
-        else:
-            logger.debug("[ENTRY_EDITOR] No action updates needed - entries already in correct order")
+        try:
+            with db.atomic():
+                for entry in entries_to_flip:
+                    new_action = "out" if entry.action == "in" else "in"
+                    TimeEntry.update(action=new_action).where(TimeEntry.id == entry.id).execute()
+            logger.info(f"[ENTRY_EDITOR] Flipped {len(entries_to_flip)} entry actions")
+        except Exception as e:
+            logger.error(f"[ENTRY_EDITOR] Error updating actions: {e}")
 
 class AdminScreen(Screen):
     def export_csv(self):
@@ -385,8 +371,7 @@ class RegisterScreen(Screen):
         tag = self.tag_id.strip() if self.tag_id else ""
         is_admin = self.ids.admin_checkbox.active
         
-        logger.debug(f"[REGISTER] save_user called: raw_name={raw_name!r}, name={name!r}, tag={tag!r}, is_admin={is_admin}")
-        logger.debug(f"[REGISTER] name_input.text={self.ids.name_input.text!r}")
+        logger.debug(f"[REGISTER] save_user: name={name!r}, tag={tag!r}, is_admin={is_admin}")
         
         if not name:
             logger.warning(f"[REGISTER] Name validation failed: raw_name={raw_name!r}, name={name!r}, len={len(name) if name else 0}")
@@ -411,8 +396,7 @@ class RegisterScreen(Screen):
             
             # Clear form and navigate
             self.tag_id = "Warte auf Scan..."
-            if hasattr(self, 'ids') and 'name_input' in self.ids:
-                self.ids.name_input.text = ""
+            self.ids.name_input.text = ""
             self.manager.current = 'admin'
             
             App.get_running_app().show_popup("Success", f"Benutzer {employee.name} erfolgreich erstellt.")
@@ -451,7 +435,7 @@ class WTReportSelectEmployeeScreen(Screen):
                 
                 # Create button for each employee
                 for employee in employees:
-                    btn = Button(
+                    btn = DebouncedButton(
                         text=f"{employee.name} ({employee.rfid_tag})",
                         size_hint_y=None,
                         height='80dp',
@@ -471,7 +455,7 @@ class WTReportSelectEmployeeScreen(Screen):
         date_screen.selected_employee = employee
         app.root.current = 'wtreport_select_dates'
 
-# Date Picker Popup - User-friendly calendar-style picker
+# Date Picker Popup - Optimized for 800x480 Landscape
 class DatePickerPopup(Popup):
     selected_date = ObjectProperty(None, allownone=True)
     
@@ -479,7 +463,7 @@ class DatePickerPopup(Popup):
         super().__init__(**kwargs)
         self.on_select_callback = on_select
         self.title = "Datum Auswählen"
-        self.size_hint = (0.75, 0.65)  # Reduced size
+        self.size_hint = (0.95, 0.95)  # Maximize usage for small screens
         self.auto_dismiss = False
         
         # Use current date or today
@@ -489,31 +473,34 @@ class DatePickerPopup(Popup):
         self.display_date = current_date  # The month/year being displayed
         self.selected_day = current_date.day
         
-        # Create main container
-        main_layout = BoxLayout(orientation='vertical', spacing=10, padding=10)
+        # Create main container - Horizontal Layout for Landscape
+        main_layout = BoxLayout(orientation='horizontal', spacing=10, padding=5)
+        
+        # --- LEFT PANEL: Calendar (65% width) ---
+        left_panel = BoxLayout(orientation='vertical', spacing=5, size_hint_x=0.65)
         
         # Header: Month/Year navigation
-        header = BoxLayout(orientation='horizontal', size_hint_y=None, height='50dp', spacing=8)
+        header = BoxLayout(orientation='horizontal', size_hint_y=None, height='60dp', spacing=10)
         
-        prev_month_btn = Button(
-            text="◀",
-            font_size='24sp',
-            size_hint_x=0.15,
+        prev_month_btn = DebouncedButton(
+            text="<",
+            font_size='30sp',
+            size_hint_x=0.2,
             background_color=(0.3, 0.5, 0.7, 1)
         )
         prev_month_btn.bind(on_release=lambda x: self._change_month(-1))
         
         month_year_label = Label(
             text=f"{self._get_month_name(current_date.month)} {current_date.year}",
-            font_size='20sp',
-            size_hint_x=0.7,
+            font_size='24sp',
+            size_hint_x=0.6,
             bold=True
         )
         
-        next_month_btn = Button(
-            text="▶",
-            font_size='24sp',
-            size_hint_x=0.15,
+        next_month_btn = DebouncedButton(
+            text=">",
+            font_size='30sp',
+            size_hint_x=0.2,
             background_color=(0.3, 0.5, 0.7, 1)
         )
         next_month_btn.bind(on_release=lambda x: self._change_month(1))
@@ -523,75 +510,82 @@ class DatePickerPopup(Popup):
         header.add_widget(next_month_btn)
         
         self.month_year_label = month_year_label
-        main_layout.add_widget(header)
-        
-        # Calendar grid with ScrollView
-        calendar_container = BoxLayout(orientation='vertical', spacing=3, size_hint_y=None)
-        calendar_container.bind(minimum_height=calendar_container.setter('height'))
+        left_panel.add_widget(header)
         
         # Day names header
         day_names = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
-        day_header = GridLayout(cols=7, size_hint_y=None, height='30dp', spacing=2)
+        day_header = GridLayout(cols=7, size_hint_y=None, height='40dp', spacing=2)
         for day_name in day_names:
             label = Label(
                 text=day_name,
-                font_size='14sp',
+                font_size='18sp',
                 bold=True,
-                color=(0.5, 0.5, 0.5, 1)
+                color=(0.7, 0.7, 0.7, 1)
             )
             day_header.add_widget(label)
-        calendar_container.add_widget(day_header)
+        left_panel.add_widget(day_header)
         
-        # Days grid
-        days_grid = GridLayout(cols=7, spacing=2, size_hint_y=None)
-        days_grid.bind(minimum_height=days_grid.setter('height'))
+        # Days grid - Fills remaining vertical space
+        days_grid = GridLayout(cols=7, spacing=3)
         self.days_grid = days_grid
         self.day_buttons = []
+        left_panel.add_widget(days_grid)
         
-        self._update_calendar()
-        calendar_container.add_widget(days_grid)
+        main_layout.add_widget(left_panel)
         
-        # ScrollView for calendar
-        scroll = ScrollView(
-            size_hint=(1, 1),
-            do_scroll_x=False,
-            do_scroll_y=True,
-            bar_width=8
+        # --- RIGHT PANEL: Controls (35% width) ---
+        right_panel = BoxLayout(orientation='vertical', spacing=10, size_hint_x=0.35, padding=[5, 0, 0, 0])
+        
+        # Selected Date Display
+        self.selected_date_label = Label(
+            text="",
+            font_size='24sp',
+            bold=True,
+            color=(0.2, 0.8, 0.2, 1),
+            size_hint_y=1  # Fills available space
         )
-        scroll.add_widget(calendar_container)
-        main_layout.add_widget(scroll)
+        right_panel.add_widget(self.selected_date_label)
         
-        # Quick actions
-        quick_actions = BoxLayout(orientation='horizontal', size_hint_y=None, height='45dp', spacing=8)
-        today_btn = Button(
+        # Buttons
+        btn_height = '60dp'
+        
+        today_btn = DebouncedButton(
             text="Heute",
-            background_color=(0.2, 0.7, 0.3, 1),
-            font_size='16sp'
+            background_color=(0.2, 0.6, 0.8, 1),
+            font_size='20sp',
+            size_hint_y=None,
+            height=btn_height
         )
         today_btn.bind(on_release=lambda x: self._select_today())
-        quick_actions.add_widget(today_btn)
+        right_panel.add_widget(today_btn)
         
-        # Action buttons
-        btn_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height='50dp', spacing=8)
-        ok_btn = Button(
-            text="Auswählen",
+        ok_btn = DebouncedButton(
+            text="OK",
             background_color=(0, 0.7, 0, 1),
-            font_size='18sp'
+            font_size='20sp',
+            size_hint_y=None,
+            height=btn_height
         )
         ok_btn.bind(on_release=lambda x: self._confirm_date())
-        cancel_btn = Button(
+        right_panel.add_widget(ok_btn)
+        
+        cancel_btn = DebouncedButton(
             text="Abbrechen",
             background_color=(0.7, 0.2, 0.2, 1),
-            font_size='18sp'
+            font_size='20sp',
+            size_hint_y=None,
+            height=btn_height
         )
         cancel_btn.bind(on_release=self.dismiss)
-        btn_layout.add_widget(ok_btn)
-        btn_layout.add_widget(cancel_btn)
+        right_panel.add_widget(cancel_btn)
         
-        main_layout.add_widget(quick_actions)
-        main_layout.add_widget(btn_layout)
+        main_layout.add_widget(right_panel)
         
         self.content = main_layout
+        
+        # Initial Update
+        self._update_calendar()
+        self._update_selected_label()
     
     def _get_month_name(self, month):
         """Get German month name"""
@@ -601,6 +595,8 @@ class DatePickerPopup(Popup):
     
     def _change_month(self, delta):
         """Change displayed month"""
+        # Debounce handled by DebouncedButton
+        
         year = self.display_date.year
         month = self.display_date.month + delta
         
@@ -622,6 +618,19 @@ class DatePickerPopup(Popup):
         self.selected_day = today.day
         self.month_year_label.text = f"{self._get_month_name(today.month)} {today.year}"
         self._update_calendar()
+        self._update_selected_label()
+    
+    def _update_selected_label(self):
+        """Update the big label showing selected date"""
+        try:
+            date = datetime.date(
+                self.display_date.year,
+                self.display_date.month,
+                self.selected_day
+            )
+            self.selected_date_label.text = date.strftime("%d.%m.%Y")
+        except ValueError:
+            self.selected_date_label.text = ""
     
     def _update_calendar(self):
         """Update the calendar grid with days"""
@@ -662,27 +671,32 @@ class DatePickerPopup(Popup):
                 bg_color = (0.4, 0.4, 0.4, 1)  # Gray for normal
                 text_color = (1, 1, 1, 1)
             
-            btn = Button(
+            btn = DebouncedButton(
                 text=str(day),
-                font_size='16sp',
+                font_size='18sp',
                 background_color=bg_color,
-                color=text_color,
-                size_hint_y=None,
-                height='45dp'
+                color=text_color
             )
             btn.bind(on_release=lambda instance, d=day: self._select_day(d))
             self.days_grid.add_widget(btn)
             self.day_buttons.append(btn)
         
-        # Fill remaining cells to complete grid
-        total_cells = len(self.day_buttons) + first_weekday
-        remaining = (7 - (total_cells % 7)) % 7
-        for _ in range(remaining):
+        # Fill remaining cells to complete grid (6 rows * 7 columns = 42 cells max usually enough)
+        # But GridLayout will just fill. We just want it to look neat.
+        # If we want consistent cell sizes, we might need to fill up to 42 (6 rows)
+        total_cells = first_weekday + days_in_month
+        rows_needed = (total_cells + 6) // 7
+        total_slots = rows_needed * 7
+        
+        for _ in range(total_slots - total_cells):
             self.days_grid.add_widget(Widget())
     
     def _select_day(self, day):
         """Select a day"""
+        # Debounce handled by DebouncedButton
         self.selected_day = day
+        self._update_selected_label()
+        
         # Update button colors
         today = datetime.date.today()
         for i, btn in enumerate(self.day_buttons):
@@ -703,6 +717,7 @@ class DatePickerPopup(Popup):
     
     def _confirm_date(self):
         """Confirm date selection"""
+        # Debounce handled by DebouncedButton
         try:
             selected_date = datetime.date(
                 self.display_date.year,
@@ -734,42 +749,34 @@ class WTReportSelectDatesScreen(Screen):
     
     def _update_date_display(self):
         """Update the date display buttons"""
-        if hasattr(self, 'ids'):
-            if 'start_date_button' in self.ids:
-                if self.start_date:
-                    # Format: "DD.MM.YYYY" (German format)
-                    date_str = self.start_date.strftime('%d.%m.%Y')
-                    self.ids.start_date_button.text = f"Von: {date_str}"
-                else:
-                    self.ids.start_date_button.text = "Von: Datum auswählen"
-            if 'end_date_button' in self.ids:
-                if self.end_date:
-                    date_str = self.end_date.strftime('%d.%m.%Y')
-                    self.ids.end_date_button.text = f"Bis: {date_str}"
-                else:
-                    self.ids.end_date_button.text = "Bis: Datum auswählen"
+        if not hasattr(self, 'ids'):
+            return
+        start_text = f"Von:\n{self.start_date.strftime('%d.%m.%Y')}" if self.start_date else "Von:\nDatum wählen"
+        end_text = f"Bis:\n{self.end_date.strftime('%d.%m.%Y')}" if self.end_date else "Bis:\nDatum wählen"
+        if 'start_date_button' in self.ids:
+            self.ids.start_date_button.text = start_text
+        if 'end_date_button' in self.ids:
+            self.ids.end_date_button.text = end_text
     
     def open_start_date_picker(self):
         """Open date picker for start date"""
         DatePickerPopup(
             current_date=self.start_date or datetime.date.today(),
-            on_select=lambda date: self._on_start_date_selected(date)
+            on_select=self._set_start_date
         ).open()
     
     def open_end_date_picker(self):
         """Open date picker for end date"""
         DatePickerPopup(
             current_date=self.end_date or datetime.date.today(),
-            on_select=lambda date: self._on_end_date_selected(date)
+            on_select=self._set_end_date
         ).open()
     
-    def _on_start_date_selected(self, date):
-        """Handle start date selection"""
+    def _set_start_date(self, date):
         self.start_date = date
         self._update_date_display()
     
-    def _on_end_date_selected(self, date):
-        """Handle end date selection"""
+    def _set_end_date(self, date):
         self.end_date = date
         self._update_date_display()
     
@@ -872,12 +879,7 @@ class WindowManager(ScreenManager):
     pass
 
 class TimeClockApp(App):
-    # Let Kivy auto-load the KV file by specifying the path
-    # This ensures it's loaded exactly once, preventing the "loaded multiples times" warning
-    # Path is relative to this file's location (src/main.py -> src/timeclock.kv)
-    kv_dir = os.path.dirname(os.path.abspath(__file__))
-    kv_file = os.path.join(kv_dir, 'timeclock.kv')
-    
+
     def build(self):
         # Initialize database and RFID before returning root (which is auto-loaded from KV file)
         initialize_db()
@@ -957,17 +959,15 @@ class TimeClockApp(App):
             self.show_popup("Unbekannter Tag", f"Tag ID: {tag_id}")
             return
 
-        employee = existing_employee
-
         # If Admin Tag
-        if employee.is_admin:
+        if existing_employee.is_admin:
             if current_screen != 'admin':
                 self.root.current = 'admin'
             return
 
         # If Normal Employee
         if current_screen == 'timeclock':
-            self.perform_clock_action(employee)
+            self.perform_clock_action(existing_employee)
         elif current_screen == 'admin':
             self.show_popup("Admin Modus", "Please switch to Timeclock mode to clock in/out.")
 
@@ -1037,7 +1037,7 @@ class TimeClockApp(App):
         content.add_widget(scroll)
         
         # Add close button
-        close_btn = Button(
+        close_btn = DebouncedButton(
             text="Schließen",
             size_hint_y=None,
             height='50dp',
@@ -1048,7 +1048,7 @@ class TimeClockApp(App):
         popup = Popup(
             title=f"Tagesbericht - {employee.name}",
             content=content,
-            size_hint=(0.9, 0.85),
+            size_hint=(0.95, 0.95),
             auto_dismiss=True
         )
         close_btn.bind(on_release=popup.dismiss)

@@ -1,3 +1,5 @@
+#:import DebouncedButton src.main.DebouncedButton
+
 WindowManager:
     TimeClockScreen:
     AdminScreen:
@@ -9,6 +11,11 @@ WindowManager:
 
 # Global Styles
 <Button>:
+    font_size: 24
+    size_hint_y: None
+    height: '80dp'
+
+<DebouncedButton>:
     font_size: 24
     size_hint_y: None
     height: '80dp'
@@ -37,11 +44,11 @@ WindowManager:
             height: '70dp'
             spacing: 20
 
-            Button:
+            DebouncedButton:
                 text: "View Today's Sessions"
                 on_release: app.show_today_report_popup()
                 background_color: 0, 0.6, 1, 1
-            Button:
+            DebouncedButton:
                 text: "Edit Today's Sessions"
                 on_release: app.edit_today_sessions()
                 background_color: 0.2, 0.8, 0.2, 1
@@ -69,20 +76,20 @@ WindowManager:
                 size_hint_y: None
                 height: self.minimum_height
                 
-                Button:
+                DebouncedButton:
                     text: "Neuen Benutzer Erfassen"
                     on_release: app.root.current = "register"
-                Button:
+                DebouncedButton:
                     text: "RFID-Tag Identifizieren"
                     on_release: app.root.current = "identify"
-                Button:
+                DebouncedButton:
                     text: "Work Time Reports"
                     background_color: 0, 0.7, 1, 1  # Blue
                     on_release: app.root.current = "wtreport_select_employee"
-                Button:
+                DebouncedButton:
                     text: "CSV Export"
                     on_release: root.export_csv()
-                Button:
+                DebouncedButton:
                     text: "Zurück zum Zeit-Terminal"
                     background_color: 1, 0, 0, 1 # Red
                     on_release: app.root.current = "timeclock"
@@ -110,7 +117,7 @@ WindowManager:
                 size_hint_y: None
                 height: self.texture_size[1] if self.texture_size else '50dp'
             
-        Button:
+        DebouncedButton:
             text: "Zurück"
             on_release: app.root.current = "admin"
 
@@ -140,7 +147,6 @@ WindowManager:
             use_handles: False
             write_tab: False
             password: False
-            on_focus: root.on_textinput_focus(self, self.focus)
             
         Label:
             text: "Gescannte Tag ID: " + root.tag_id
@@ -168,11 +174,11 @@ WindowManager:
             spacing: 20
             size_hint_y: None
             height: '80dp'
-            Button:
+            DebouncedButton:
                 text: "Speichern"
                 background_color: 0, 1, 0, 1
                 on_release: root.save_user()
-            Button:
+            DebouncedButton:
                 text: "Abbrechen"
                 background_color: 1, 0, 0, 1
                 on_release: root.cancel()
@@ -209,7 +215,7 @@ WindowManager:
                 row_force_default: True
                 padding: 10
         
-        Button:
+        DebouncedButton:
             text: "Zurück"
             font_size: '20sp'
             size_hint_y: None
@@ -253,23 +259,27 @@ WindowManager:
                     height: '50dp'
                     color: 0, 0.8, 0, 1
                 
-                Button:
-                    id: start_date_button
-                    text: "Von: Datum auswählen"
-                    font_size: '26sp'
+                GridLayout:
+                    cols: 2
+                    spacing: 15
                     size_hint_y: None
-                    height: '80dp'
-                    background_color: 0.2, 0.6, 0.9, 1
-                    on_release: root.open_start_date_picker()
-                
-                Button:
-                    id: end_date_button
-                    text: "Bis: Datum auswählen"
-                    font_size: '26sp'
-                    size_hint_y: None
-                    height: '80dp'
-                    background_color: 0.2, 0.6, 0.9, 1
-                    on_release: root.open_end_date_picker()
+                    height: '90dp'
+                    
+                    DebouncedButton:
+                        id: start_date_button
+                        text: "Von:\\nDatum"
+                        halign: 'center'
+                        font_size: '22sp'
+                        background_color: 0.2, 0.6, 0.9, 1
+                        on_release: root.open_start_date_picker()
+                    
+                    DebouncedButton:
+                        id: end_date_button
+                        text: "Bis:\\nDatum"
+                        halign: 'center'
+                        font_size: '22sp'
+                        background_color: 0.2, 0.6, 0.9, 1
+                        on_release: root.open_end_date_picker()
                 
                 GridLayout:
                     cols: 2
@@ -277,20 +287,20 @@ WindowManager:
                     size_hint_y: None
                     height: '80dp'
                     
-                    Button:
+                    DebouncedButton:
                         text: "Bericht Erstellen"
                         font_size: '20sp'
                         background_color: 0, 0.7, 0, 1
                         on_release: root.generate_report()
                     
-                    Button:
+                    DebouncedButton:
                         text: "CSV Exportieren"
                         font_size: '20sp'
                         background_color: 0, 0.5, 0.9, 1
                         on_release: root.export_report()
         
         # Fixed Footer
-        Button:
+        DebouncedButton:
             text: "Zurück"
             font_size: '20sp'
             size_hint_y: None
@@ -343,13 +353,13 @@ WindowManager:
             size_hint_y: None
             height: '80dp'
             
-            Button:
+            DebouncedButton:
                 text: "CSV Exportieren"
                 font_size: '20sp'
                 background_color: 0, 0.5, 0.9, 1
                 on_release: root.export_report()
             
-            Button:
+            DebouncedButton:
                 text: "Zurück"
                 font_size: '20sp'
                 background_color: 0.6, 0.2, 0.2, 1
