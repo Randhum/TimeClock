@@ -50,14 +50,7 @@ from .database import (
 from .rfid import get_rfid_provider
 from peewee import IntegrityError
 from .wt_report import WorkingTimeReport, generate_wt_report
-from .export_utils import (
-    ExportEncryptionError,
-    ensure_export_passphrase,
-    get_export_directory,
-    get_export_passphrase,
-    set_runtime_export_passphrase,
-    write_encrypted_file,
-)
+from .export_utils import get_export_directory, write_file
 from .screensaver import ScreensaverScreen
 
 # Setup logging
@@ -575,7 +568,7 @@ class AdminScreen(Screen):
             export_dir = get_export_directory()
             filename = os.path.join(
                 export_dir,
-                f"timeclock_export_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv.enc"
+                f"timeclock_export_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
             )
             
             entries = get_time_entries_for_export()
@@ -601,16 +594,12 @@ class AdminScreen(Screen):
                     logger.warning(f"Skipping entry due to error: {e}")
                     continue
 
-            passphrase = get_export_passphrase()
-            write_encrypted_file(buffer.getvalue().encode('utf-8'), filename, passphrase)
+            write_file(buffer.getvalue().encode('utf-8'), filename)
             
             App.get_running_app().show_popup(
                 "Export Success", 
-                f"Encrypted export ({entry_count} entries) saved to:\n{filename}"
+                f"Export ({entry_count} entries) saved to:\n{filename}"
             )
-        except ExportEncryptionError as e:
-            logger.error(f"CSV export failed (encryption): {e}")
-            App.get_running_app().show_popup("Export Error", str(e))
         except Exception as e:
             logger.error(f"CSV export failed: {e}")
             App.get_running_app().show_popup("Export Error", f"Failed to export: {str(e)}")
@@ -621,9 +610,8 @@ class AdminScreen(Screen):
             export_dir = get_export_directory()
             filename = os.path.join(
                 export_dir,
-                f"timeclock_db_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.sqlite.enc"
+                f"timeclock_db_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.sqlite"
             )
-            passphrase = get_export_passphrase()
 
             db_path = os.path.abspath(db.database)
             with tempfile.NamedTemporaryFile(delete=False) as tmp:
@@ -638,14 +626,11 @@ class AdminScreen(Screen):
             with open(temp_path, "rb") as f:
                 db_bytes = f.read()
 
-            write_encrypted_file(db_bytes, filename, passphrase)
+            write_file(db_bytes, filename)
             App.get_running_app().show_popup(
                 "Export Success",
-                f"Encrypted database export saved to:\n{filename}"
+                f"Database export saved to:\n{filename}"
             )
-        except ExportEncryptionError as e:
-            logger.error(f"Database export failed (encryption): {e}")
-            App.get_running_app().show_popup("Export Error", str(e))
         except Exception as e:
             logger.error(f"Database export failed: {e}")
             App.get_running_app().show_popup("Export Error", f"Failed to export database: {str(e)}")
@@ -735,14 +720,7 @@ class RegisterScreen(Screen):
             self.ids.name_input.text = ""
             app = App.get_running_app()
 
-            def go_admin():
-                self.manager.current = 'admin'
-
-            # If this is the first admin and no passphrase set, prompt for encryption first
-            if get_admin_count() == 1 and not ensure_export_passphrase():
-                app.prompt_export_passphrase(on_success=go_admin)
-            else:
-                go_admin()
+            self.manager.current = 'admin'
 
             app.show_popup("Success", f"Benutzer {employee.name} erfolgreich erstellt.")
             app.rfid.indicate_success()
@@ -1330,7 +1308,7 @@ class WTReportSelectDatesScreen(Screen):
             
             # Show success message and return to admin
             app = App.get_running_app()
-            app.show_popup("Export Erfolgreich", f"WT Report (verschlüsselt) exportiert nach:\n{filename}")
+            app.show_popup("Export Erfolgreich", f"WT Report exportiert nach:\n{filename}")
             Clock.schedule_once(lambda dt: setattr(app.root, 'current', 'admin'), 2.5)
             
         except Exception as e:
@@ -1372,7 +1350,7 @@ class WTReportDisplayScreen(Screen):
             
             # Show success message and return to admin
             app = App.get_running_app()
-            app.show_popup("Export Erfolgreich", f"WT Report (verschlüsselt) exportiert nach:\n{filename}")
+            app.show_popup("Export Erfolgreich", f"WT Report exportiert nach:\n{filename}")
             Clock.schedule_once(lambda dt: setattr(app.root, 'current', 'admin'), 2.5)
             
         except Exception as e:
@@ -1392,9 +1370,6 @@ class TimeClockApp(App):
         self.rfid = get_rfid_provider(self.on_rfid_scan, use_mock=False) # Attempt real, fallback to mock
         self.rfid.start()
         self._recent_scan_times = {}
-
-        # If admins already exist but passphrase missing, prompt for passphrase
-        self._schedule_passphrase_prompt_if_needed()
         
         # Global input de-duplication (touch) to suppress double events everywhere
         self._input_filter = GlobalInputFilter(Window)
@@ -1454,7 +1429,6 @@ class TimeClockApp(App):
         self.root.get_screen('register').ids.admin_checkbox.active = True
         self.root.get_screen('register').ids.admin_checkbox.disabled = True # Force admin for first user
         self.show_popup("Welcome", "Please register the initial Administrator.")
-        # Passphrase will be prompted right after first admin creation
 
     def on_rfid_scan(self, tag_id):
         # Schedule handling on main thread
@@ -1626,66 +1600,6 @@ class TimeClockApp(App):
         popup = Popup(title=title, content=Label(text=content), size_hint=(None, None), size=(400, 200))
         popup.open()
         Clock.schedule_once(lambda dt: popup.dismiss(), 3)
-
-    def prompt_export_passphrase(self, on_success=None):
-        """Prompt admin to set encryption passphrase (session-local unless env is set)."""
-        if ensure_export_passphrase():
-            if on_success:
-                on_success()
-            return
-
-        from kivy.uix.textinput import TextInput
-
-        box = BoxLayout(orientation='vertical', spacing=10, padding=10)
-        info = Label(
-            text="Set export encryption passphrase.\nUsed for CSV and DB exports.",
-            size_hint_y=None,
-            height='70dp'
-        )
-        input1 = TextInput(password=True, multiline=False, hint_text="Passphrase (min 8 chars)")
-        input2 = TextInput(password=True, multiline=False, hint_text="Confirm passphrase")
-        error_label = Label(text="", color=(1, 0.2, 0.2, 1), size_hint_y=None, height='30dp')
-
-        btns = BoxLayout(orientation='horizontal', spacing=10, size_hint_y=None, height='60dp')
-        save_btn = DebouncedButton(text="Speichern", background_color=(0, 0.7, 0, 1))
-        btns.add_widget(save_btn)
-
-        box.add_widget(info)
-        box.add_widget(input1)
-        box.add_widget(input2)
-        box.add_widget(error_label)
-        box.add_widget(btns)
-
-        popup = Popup(title="Verschlüsselung", content=box, size_hint=(0.9, 0.8), auto_dismiss=False)
-
-        def save_passphrase(*_):
-            p1 = (input1.text or "").strip()
-            p2 = (input2.text or "").strip()
-            if len(p1) < 8:
-                error_label.text = "Passphrase muss mind. 8 Zeichen lang sein."
-                return
-            if p1 != p2:
-                error_label.text = "Passwörter stimmen nicht überein."
-                return
-            set_runtime_export_passphrase(p1)
-            error_label.text = ""
-            popup.dismiss()
-            if on_success:
-                on_success()
-
-
-        save_btn.bind(on_release=save_passphrase)
-        popup.open()
-
-    def _schedule_passphrase_prompt_if_needed(self):
-        """If an admin exists and no passphrase is set, prompt soon after startup."""
-        try:
-            if ensure_export_passphrase():
-                return
-            if get_admin_count() > 0:
-                Clock.schedule_once(lambda dt: self.prompt_export_passphrase(), 1)
-        except Exception as e:
-            logger.warning(f"Could not schedule passphrase prompt: {e}")
 
     def on_stop(self):
         self.rfid.stop()

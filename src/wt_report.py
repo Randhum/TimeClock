@@ -7,7 +7,6 @@ import logging
 from collections import deque
 from typing import List, Dict, Optional
 from .database import Employee, TimeEntry, ensure_db_connection
-from .export_utils import get_export_passphrase, write_encrypted_file
 
 logger = logging.getLogger(__name__)
 
@@ -231,18 +230,14 @@ class WorkingTimeReport:
     def to_csv(
         self,
         filename: Optional[str] = None,
-        export_root: Optional[str] = None,
-        encrypt: bool = True,
-        passphrase: Optional[str] = None
+        export_root: Optional[str] = None
     ) -> str:
         """
-        Export report to CSV file (encrypted by default).
+        Export report to CSV file.
         
         Args:
             filename: Optional filename. If not provided, generates one.
             export_root: Optional directory where the file should be written.
-            encrypt: Whether to encrypt the CSV bytes before writing.
-            passphrase: Optional override for the encryption passphrase.
         
         Returns:
             Path to the generated file.
@@ -290,19 +285,11 @@ class WorkingTimeReport:
         writer.writerow(['Days Worked:', summary['days_worked']])
         writer.writerow(['Average Hours per Day:', summary['formatted_average_per_day']])
 
-        csv_bytes = buffer.getvalue().encode('utf-8')
-
-        if encrypt:
-            if not filename.lower().endswith(".enc"):
-                filename = f"{filename}.enc"
-            passphrase = passphrase or get_export_passphrase()
-            write_encrypted_file(csv_bytes, filename, passphrase)
-            logger.info(f"WT Report encrypted export written to {filename}")
-        else:
-            os.makedirs(os.path.dirname(filename) if os.path.dirname(filename) else 'exports', exist_ok=True)
-            with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
-                csvfile.write(buffer.getvalue())
-            logger.info(f"WT Report plaintext export written to {filename}")
+        # Write plain-text CSV
+        os.makedirs(os.path.dirname(filename) if os.path.dirname(filename) else 'exports', exist_ok=True)
+        with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
+            csvfile.write(buffer.getvalue())
+        logger.info(f"WT Report export written to {filename}")
 
         return filename
     
@@ -368,4 +355,3 @@ def generate_wt_report(employee: Employee, start_date: Optional[datetime.date] =
     report = WorkingTimeReport(employee, start_date, end_date)
     report.generate()
     return report
-
