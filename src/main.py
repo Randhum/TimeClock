@@ -4,6 +4,9 @@ import os
 import datetime
 import time
 import random
+import io
+import sqlite3
+import tempfile
 
 # IMPORTANT: Config must be set BEFORE importing Kivy modules
 from kivy.config import Config
@@ -33,6 +36,7 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.screenmanager import ScreenManager, Screen
 from kivy.uix.textinput import TextInput
 from kivy.uix.widget import Widget
+from kivy.uix.spinner import Spinner
 from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.properties import ObjectProperty, StringProperty
@@ -40,12 +44,20 @@ from kivy.properties import ObjectProperty, StringProperty
 from .database import (
     initialize_db, close_db, Employee, TimeEntry, db,
     get_employee_by_tag, get_admin_count, create_employee, create_time_entry,
-    get_time_entries_for_export, get_all_employees, soft_delete_time_entries
+    get_time_entries_for_export, get_all_employees, soft_delete_time_entries,
+    ensure_db_connection
 )
 from .rfid import get_rfid_provider
 from peewee import IntegrityError
 from .wt_report import WorkingTimeReport, generate_wt_report
-from .export_utils import get_export_directory
+from .export_utils import (
+    ExportEncryptionError,
+    ensure_export_passphrase,
+    get_export_directory,
+    get_export_passphrase,
+    set_runtime_export_passphrase,
+    write_encrypted_file,
+)
 from .screensaver import ScreensaverScreen
 
 # Setup logging
@@ -403,6 +415,15 @@ class EntryEditorPopup(Popup):
             font_size='14sp'
         )
         layout.add_widget(notice)
+
+        add_btn = DebouncedButton(
+            text="Add Manual Entry",
+            size_hint_y=None,
+            height='50dp',
+            background_color=(0.2, 0.7, 1, 1)
+        )
+        add_btn.bind(on_release=lambda *_: self._open_add_entry())
+        layout.add_widget(add_btn)
         
         # Scrollable list of entries
         scroll = ScrollView(do_scroll_x=False)
@@ -497,6 +518,35 @@ class EntryEditorPopup(Popup):
         except Exception as e:
             logger.error(f"[ENTRY_EDITOR] Error deleting entry: {e}")
             App.get_running_app().show_popup("Error", f"Fehler beim Löschen: {str(e)}")
+
+    def _open_add_entry(self):
+        """Open popup to add a manual entry"""
+        AddEntryPopup(
+            employee=self.employee,
+            on_save=self._save_manual_entry
+        ).open()
+
+    def _save_manual_entry(self, action, timestamp):
+        """Persist manual entry and refresh state"""
+        try:
+            ensure_db_connection()
+            with db.atomic():
+                TimeEntry.create(
+                    employee=self.employee,
+                    timestamp=timestamp,
+                    action=action,
+                    active=True
+                )
+            logger.info(f"[ENTRY_EDITOR] Added manual entry {action} at {timestamp}")
+            # Reload entries and inform user
+            self._load_today_entries()
+            app = App.get_running_app()
+            self.dismiss()
+            app.show_popup("Erfolg", f"Manueller Eintrag ({action.upper()}) gespeichert.")
+            app.root.current = "timeclock"
+        except Exception as e:
+            logger.error(f"[ENTRY_EDITOR] Error adding manual entry: {e}")
+            App.get_running_app().show_popup("Error", f"Fehler beim Hinzufügen: {str(e)}")
     
     def _after_delete_cleanup(self, app):
         """Called after popup is dismissed to show success and navigate"""
@@ -510,6 +560,7 @@ class EntryEditorPopup(Popup):
             return
         
         try:
+            ensure_db_connection()
             with db.atomic():
                 for entry in entries_to_flip:
                     new_action = "out" if entry.action == "in" else "in"
@@ -524,7 +575,7 @@ class AdminScreen(Screen):
             export_dir = get_export_directory()
             filename = os.path.join(
                 export_dir,
-                f"timeclock_export_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+                f"timeclock_export_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv.enc"
             )
             
             entries = get_time_entries_for_export()
@@ -533,32 +584,77 @@ class AdminScreen(Screen):
             if entry_count == 0:
                 App.get_running_app().show_popup("Export Info", "No time entries to export.")
                 return
+            fieldnames = ['Employee Name', 'Tag ID', 'Action', 'Timestamp']
+            buffer = io.StringIO()
+            writer = csv.DictWriter(buffer, fieldnames=fieldnames)
+            writer.writeheader()
             
-            with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
-                fieldnames = ['Employee Name', 'Tag ID', 'Action', 'Timestamp']
-                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            for entry in entries:
+                try:
+                    writer.writerow({
+                        'Employee Name': entry.employee.name,
+                        'Tag ID': entry.employee.rfid_tag,
+                        'Action': entry.action.upper(),
+                        'Timestamp': entry.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+                    })
+                except Exception as e:
+                    logger.warning(f"Skipping entry due to error: {e}")
+                    continue
 
-                writer.writeheader()
-                
-                for entry in entries:
-                    try:
-                        writer.writerow({
-                            'Employee Name': entry.employee.name,
-                            'Tag ID': entry.employee.rfid_tag,
-                            'Action': entry.action.upper(),
-                            'Timestamp': entry.timestamp.strftime('%Y-%m-%d %H:%M:%S')
-                        })
-                    except Exception as e:
-                        logger.warning(f"Skipping entry due to error: {e}")
-                        continue
+            passphrase = get_export_passphrase()
+            write_encrypted_file(buffer.getvalue().encode('utf-8'), filename, passphrase)
             
             App.get_running_app().show_popup(
                 "Export Success", 
-                f"Exported {entry_count} entries to:\n{filename}"
+                f"Encrypted export ({entry_count} entries) saved to:\n{filename}"
             )
+        except ExportEncryptionError as e:
+            logger.error(f"CSV export failed (encryption): {e}")
+            App.get_running_app().show_popup("Export Error", str(e))
         except Exception as e:
             logger.error(f"CSV export failed: {e}")
             App.get_running_app().show_popup("Export Error", f"Failed to export: {str(e)}")
+
+    def export_database(self):
+        temp_path = None
+        try:
+            export_dir = get_export_directory()
+            filename = os.path.join(
+                export_dir,
+                f"timeclock_db_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.sqlite.enc"
+            )
+            passphrase = get_export_passphrase()
+
+            db_path = os.path.abspath(db.database)
+            with tempfile.NamedTemporaryFile(delete=False) as tmp:
+                temp_path = tmp.name
+
+            source_conn = sqlite3.connect(db_path, timeout=10)
+            dest_conn = sqlite3.connect(temp_path)
+            source_conn.backup(dest_conn)
+            dest_conn.close()
+            source_conn.close()
+
+            with open(temp_path, "rb") as f:
+                db_bytes = f.read()
+
+            write_encrypted_file(db_bytes, filename, passphrase)
+            App.get_running_app().show_popup(
+                "Export Success",
+                f"Encrypted database export saved to:\n{filename}"
+            )
+        except ExportEncryptionError as e:
+            logger.error(f"Database export failed (encryption): {e}")
+            App.get_running_app().show_popup("Export Error", str(e))
+        except Exception as e:
+            logger.error(f"Database export failed: {e}")
+            App.get_running_app().show_popup("Export Error", f"Failed to export database: {str(e)}")
+        finally:
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except Exception as cleanup_error:
+                    logger.warning(f"Could not remove temp file {temp_path}: {cleanup_error}")
 
 class IdentifyScreen(Screen):
     tag_info = StringProperty("Scan a tag to identify...")
@@ -637,10 +733,19 @@ class RegisterScreen(Screen):
             # Clear form and navigate
             self.tag_id = "Warte auf Scan..."
             self.ids.name_input.text = ""
-            self.manager.current = 'admin'
-            
-            App.get_running_app().show_popup("Success", f"Benutzer {employee.name} erfolgreich erstellt.")
-            App.get_running_app().rfid.indicate_success()
+            app = App.get_running_app()
+
+            def go_admin():
+                self.manager.current = 'admin'
+
+            # If this is the first admin and no passphrase set, prompt for encryption first
+            if get_admin_count() == 1 and not ensure_export_passphrase():
+                app.prompt_export_passphrase(on_success=go_admin)
+            else:
+                go_admin()
+
+            app.show_popup("Success", f"Benutzer {employee.name} erfolgreich erstellt.")
+            app.rfid.indicate_success()
         except ValueError as e:
             logger.warning(f"[REGISTER] ValueError: {e}")
             self._saving = False
@@ -826,6 +931,165 @@ class DatePickerPopup(Popup):
         # Initial Update
         self._update_calendar()
         self._update_selected_label()
+
+
+class TimePickerPopup(Popup):
+    selected_time = ObjectProperty(None, allownone=True)
+
+    def __init__(self, current_time=None, on_select=None, **kwargs):
+        super().__init__(**kwargs)
+        self.on_select_callback = on_select
+        now = current_time or datetime.datetime.now().time()
+        self.selected_hour = now.hour
+        self.selected_minute = (now.minute // 5) * 5  # round to 5 minutes
+
+        self.title = "Zeit Auswählen"
+        self.size_hint = (0.6, 0.6)
+        self.auto_dismiss = False
+
+        layout = BoxLayout(orientation='vertical', spacing=10, padding=10)
+
+        # Hour/Minute selectors
+        selectors = BoxLayout(orientation='horizontal', spacing=10, size_hint_y=None, height='60dp')
+        self.hour_spinner = Spinner(
+            text=f"{self.selected_hour:02d}",
+            values=[f"{h:02d}" for h in range(24)],
+            size_hint_x=0.5
+        )
+        self.minute_spinner = Spinner(
+            text=f"{self.selected_minute:02d}",
+            values=[f"{m:02d}" for m in range(0, 60, 5)],
+            size_hint_x=0.5
+        )
+        selectors.add_widget(self.hour_spinner)
+        selectors.add_widget(self.minute_spinner)
+        layout.add_widget(selectors)
+
+        # Buttons
+        btn_row = BoxLayout(orientation='horizontal', spacing=10, size_hint_y=None, height='50dp')
+        ok_btn = DebouncedButton(text="OK", background_color=(0, 0.7, 0, 1))
+        cancel_btn = DebouncedButton(text="Abbrechen", background_color=(0.7, 0.2, 0.2, 1))
+        ok_btn.bind(on_release=self._confirm_time)
+        cancel_btn.bind(on_release=self.dismiss)
+        btn_row.add_widget(ok_btn)
+        btn_row.add_widget(cancel_btn)
+        layout.add_widget(btn_row)
+
+        self.content = layout
+
+    def _confirm_time(self, *_):
+        try:
+            hour = int(self.hour_spinner.text)
+            minute = int(self.minute_spinner.text)
+            t = datetime.time(hour=hour, minute=minute)
+            if self.on_select_callback:
+                self.on_select_callback(t)
+            self.dismiss()
+        except ValueError:
+            App.get_running_app().show_popup("Fehler", "Ungültige Zeit")
+
+
+class AddEntryPopup(Popup):
+    def __init__(self, employee, on_save=None, **kwargs):
+        super().__init__(
+            title=f"Manuellen Eintrag hinzufügen - {employee.name}",
+            size_hint=(0.9, 0.7),
+            auto_dismiss=False,
+            **kwargs
+        )
+        self.employee = employee
+        self.on_save_callback = on_save
+        now = datetime.datetime.now()
+        self.selected_date = now.date()
+        self.selected_time = now.time().replace(second=0, microsecond=0)
+        self.selected_action = 'in'
+
+        layout = BoxLayout(orientation='vertical', spacing=10, padding=10)
+
+        # Date selection
+        self.date_btn = DebouncedButton(
+            text=f"Datum: {self.selected_date.strftime('%d.%m.%Y')}",
+            size_hint_y=None,
+            height='50dp',
+            background_color=(0.2, 0.6, 0.9, 1)
+        )
+        self.date_btn.bind(on_release=lambda *_: self._pick_date())
+        layout.add_widget(self.date_btn)
+
+        # Time selection
+        self.time_btn = DebouncedButton(
+            text=f"Zeit: {self.selected_time.strftime('%H:%M')}",
+            size_hint_y=None,
+            height='50dp',
+            background_color=(0.2, 0.6, 0.9, 1)
+        )
+        self.time_btn.bind(on_release=lambda *_: self._pick_time())
+        layout.add_widget(self.time_btn)
+
+        # Action selection
+        action_row = BoxLayout(orientation='horizontal', spacing=10, size_hint_y=None, height='50dp')
+        self.in_btn = DebouncedButton(text="IN", background_color=(0.2, 0.8, 0.2, 1))
+        self.out_btn = DebouncedButton(text="OUT", background_color=(0.8, 0.2, 0.2, 1))
+        self.in_btn.bind(on_release=lambda *_: self._set_action('in'))
+        self.out_btn.bind(on_release=lambda *_: self._set_action('out'))
+        action_row.add_widget(self.in_btn)
+        action_row.add_widget(self.out_btn)
+        layout.add_widget(action_row)
+        self._update_action_buttons()
+
+        # Buttons
+        btn_row = BoxLayout(orientation='horizontal', spacing=10, size_hint_y=None, height='50dp')
+        save_btn = DebouncedButton(text="Speichern", background_color=(0, 0.7, 0, 1))
+        cancel_btn = DebouncedButton(text="Abbrechen", background_color=(0.7, 0.2, 0.2, 1))
+        save_btn.bind(on_release=lambda *_: self._save())
+        cancel_btn.bind(on_release=self.dismiss)
+        btn_row.add_widget(save_btn)
+        btn_row.add_widget(cancel_btn)
+        layout.add_widget(btn_row)
+
+        self.content = layout
+
+    def _pick_date(self):
+        DatePickerPopup(
+            current_date=self.selected_date,
+            on_select=self._set_date
+        ).open()
+
+    def _pick_time(self):
+        TimePickerPopup(
+            current_time=self.selected_time,
+            on_select=self._set_time
+        ).open()
+
+    def _set_date(self, date_obj):
+        self.selected_date = date_obj
+        self.date_btn.text = f"Datum: {self.selected_date.strftime('%d.%m.%Y')}"
+
+    def _set_time(self, time_obj):
+        self.selected_time = time_obj
+        self.time_btn.text = f"Zeit: {self.selected_time.strftime('%H:%M')}"
+
+    def _set_action(self, action):
+        self.selected_action = action
+        self._update_action_buttons()
+
+    def _update_action_buttons(self):
+        if self.selected_action == 'in':
+            self.in_btn.background_color = (0.1, 0.6, 0.1, 1)
+            self.out_btn.background_color = (0.6, 0.2, 0.2, 1)
+        else:
+            self.in_btn.background_color = (0.2, 0.8, 0.2, 1)
+            self.out_btn.background_color = (0.6, 0.1, 0.1, 1)
+
+    def _save(self):
+        try:
+            ts = datetime.datetime.combine(self.selected_date, self.selected_time)
+            if self.on_save_callback:
+                self.on_save_callback(self.selected_action, ts)
+            self.dismiss()
+        except Exception as e:
+            logger.error(f"[ADD_ENTRY] Error combining date/time: {e}")
+            App.get_running_app().show_popup("Error", f"Ungültiges Datum/Zeit: {str(e)}")
     
     def _get_month_name(self, month):
         """Get German month name"""
@@ -1066,7 +1330,7 @@ class WTReportSelectDatesScreen(Screen):
             
             # Show success message and return to admin
             app = App.get_running_app()
-            app.show_popup("Export Erfolgreich", f"WT Report exportiert nach:\n{filename}")
+            app.show_popup("Export Erfolgreich", f"WT Report (verschlüsselt) exportiert nach:\n{filename}")
             Clock.schedule_once(lambda dt: setattr(app.root, 'current', 'admin'), 2.5)
             
         except Exception as e:
@@ -1108,7 +1372,7 @@ class WTReportDisplayScreen(Screen):
             
             # Show success message and return to admin
             app = App.get_running_app()
-            app.show_popup("Export Erfolgreich", f"WT Report exportiert nach:\n{filename}")
+            app.show_popup("Export Erfolgreich", f"WT Report (verschlüsselt) exportiert nach:\n{filename}")
             Clock.schedule_once(lambda dt: setattr(app.root, 'current', 'admin'), 2.5)
             
         except Exception as e:
@@ -1128,6 +1392,9 @@ class TimeClockApp(App):
         self.rfid = get_rfid_provider(self.on_rfid_scan, use_mock=False) # Attempt real, fallback to mock
         self.rfid.start()
         self._recent_scan_times = {}
+
+        # If admins already exist but passphrase missing, prompt for passphrase
+        self._schedule_passphrase_prompt_if_needed()
         
         # Global input de-duplication (touch) to suppress double events everywhere
         self._input_filter = GlobalInputFilter(Window)
@@ -1187,6 +1454,7 @@ class TimeClockApp(App):
         self.root.get_screen('register').ids.admin_checkbox.active = True
         self.root.get_screen('register').ids.admin_checkbox.disabled = True # Force admin for first user
         self.show_popup("Welcome", "Please register the initial Administrator.")
+        # Passphrase will be prompted right after first admin creation
 
     def on_rfid_scan(self, tag_id):
         # Schedule handling on main thread
@@ -1358,6 +1626,66 @@ class TimeClockApp(App):
         popup = Popup(title=title, content=Label(text=content), size_hint=(None, None), size=(400, 200))
         popup.open()
         Clock.schedule_once(lambda dt: popup.dismiss(), 3)
+
+    def prompt_export_passphrase(self, on_success=None):
+        """Prompt admin to set encryption passphrase (session-local unless env is set)."""
+        if ensure_export_passphrase():
+            if on_success:
+                on_success()
+            return
+
+        from kivy.uix.textinput import TextInput
+
+        box = BoxLayout(orientation='vertical', spacing=10, padding=10)
+        info = Label(
+            text="Set export encryption passphrase.\nUsed for CSV and DB exports.",
+            size_hint_y=None,
+            height='70dp'
+        )
+        input1 = TextInput(password=True, multiline=False, hint_text="Passphrase (min 8 chars)")
+        input2 = TextInput(password=True, multiline=False, hint_text="Confirm passphrase")
+        error_label = Label(text="", color=(1, 0.2, 0.2, 1), size_hint_y=None, height='30dp')
+
+        btns = BoxLayout(orientation='horizontal', spacing=10, size_hint_y=None, height='60dp')
+        save_btn = DebouncedButton(text="Speichern", background_color=(0, 0.7, 0, 1))
+        btns.add_widget(save_btn)
+
+        box.add_widget(info)
+        box.add_widget(input1)
+        box.add_widget(input2)
+        box.add_widget(error_label)
+        box.add_widget(btns)
+
+        popup = Popup(title="Verschlüsselung", content=box, size_hint=(0.9, 0.8), auto_dismiss=False)
+
+        def save_passphrase(*_):
+            p1 = (input1.text or "").strip()
+            p2 = (input2.text or "").strip()
+            if len(p1) < 8:
+                error_label.text = "Passphrase muss mind. 8 Zeichen lang sein."
+                return
+            if p1 != p2:
+                error_label.text = "Passwörter stimmen nicht überein."
+                return
+            set_runtime_export_passphrase(p1)
+            error_label.text = ""
+            popup.dismiss()
+            if on_success:
+                on_success()
+
+
+        save_btn.bind(on_release=save_passphrase)
+        popup.open()
+
+    def _schedule_passphrase_prompt_if_needed(self):
+        """If an admin exists and no passphrase is set, prompt soon after startup."""
+        try:
+            if ensure_export_passphrase():
+                return
+            if get_admin_count() > 0:
+                Clock.schedule_once(lambda dt: self.prompt_export_passphrase(), 1)
+        except Exception as e:
+            logger.warning(f"Could not schedule passphrase prompt: {e}")
 
     def on_stop(self):
         self.rfid.stop()

@@ -1,3 +1,4 @@
 kivy
 hidapi
 peewee
+cryptography

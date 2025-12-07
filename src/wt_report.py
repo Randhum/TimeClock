@@ -7,8 +7,17 @@ import logging
 from collections import deque
 from typing import List, Dict, Optional
 from .database import Employee, TimeEntry, ensure_db_connection
+from .export_utils import get_export_passphrase, write_encrypted_file
 
 logger = logging.getLogger(__name__)
+
+
+def _format_hms(total_seconds: int) -> str:
+    """Format seconds to HH:MM:SS."""
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    seconds = total_seconds % 60
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 
 class WorkingTimeReport:
@@ -146,16 +155,13 @@ class WorkingTimeReport:
                 clock_in_time, clock_in_id = pending_ins.popleft()
                 duration = entry.timestamp - clock_in_time
                 total_seconds = int(duration.total_seconds())
-                hours = total_seconds // 3600
-                minutes = (total_seconds % 3600) // 60
                 
                 sessions.append({
                     'clock_in': clock_in_time,
                     'clock_out': entry.timestamp,
-                    'hours': hours,
-                    'minutes': minutes,
+                    'total_seconds': total_seconds,
                     'total_minutes': total_seconds // 60,
-                    'formatted_time': f"{hours:02d}:{minutes:02d}",
+                    'formatted_time': _format_hms(total_seconds),
                     'clock_in_entry_id': clock_in_id,
                     'clock_out_entry_id': entry.id
                 })
@@ -166,10 +172,11 @@ class WorkingTimeReport:
         return sessions
     
     def _calculate_totals(self):
-        """Calculate total hours and minutes worked"""
-        total_minutes = sum(session['total_minutes'] for session in self.daily_sessions)
-        self.total_hours = total_minutes / 60.0
-        self.total_minutes = total_minutes
+        """Calculate total hours/minutes/seconds worked"""
+        total_seconds = sum(session.get('total_seconds', session['total_minutes'] * 60) for session in self.daily_sessions)
+        self.total_hours = total_seconds / 3600.0
+        self.total_minutes = total_seconds / 60.0
+        self.total_seconds = total_seconds
     
     def _generate_summary(self) -> Dict:
         """Generate summary statistics"""
@@ -177,22 +184,27 @@ class WorkingTimeReport:
             return {
                 'total_hours': 0,
                 'total_minutes': 0,
-                'formatted_total': "00:00",
+                'formatted_total': "00:00:00",
                 'average_hours_per_day': 0,
+                'formatted_average_per_day': "00:00:00",
                 'days_worked': 0
             }
         
         days_worked = len(set(session['date'] for session in self.daily_sessions))
-        avg_hours = self.total_hours / days_worked if days_worked > 0 else 0
-        
-        total_hours_int = int(self.total_hours)
-        total_mins_int = int((self.total_hours - total_hours_int) * 60)
+        average_seconds = int(round(self.total_seconds / days_worked)) if days_worked else 0
+        avg_hours = average_seconds / 3600.0
+
+        total_hours_int = self.total_seconds // 3600
+        total_mins_int = (self.total_seconds % 3600) // 60
+        total_secs_int = self.total_seconds % 60
         
         return {
             'total_hours': self.total_hours,
             'total_minutes': self.total_minutes,
-            'formatted_total': f"{total_hours_int:02d}:{total_mins_int:02d}",
-            'average_hours_per_day': round(avg_hours, 2),
+            'total_seconds': self.total_seconds,
+            'formatted_total': f"{int(total_hours_int):02d}:{int(total_mins_int):02d}:{int(total_secs_int):02d}",
+            'average_hours_per_day': avg_hours,
+            'formatted_average_per_day': _format_hms(average_seconds),
             'days_worked': days_worked
         }
     
@@ -208,8 +220,10 @@ class WorkingTimeReport:
             'summary': {
                 'total_hours': 0,
                 'total_minutes': 0,
-                'formatted_total': "00:00",
+                'total_seconds': 0,
+                'formatted_total': "00:00:00",
                 'average_hours_per_day': 0,
+                'formatted_average_per_day': "00:00:00",
                 'days_worked': 0
             }
         }
@@ -217,25 +231,29 @@ class WorkingTimeReport:
     def to_csv(
         self,
         filename: Optional[str] = None,
-        export_root: Optional[str] = None
+        export_root: Optional[str] = None,
+        encrypt: bool = True,
+        passphrase: Optional[str] = None
     ) -> str:
         """
-        Export report to CSV file.
+        Export report to CSV file (encrypted by default).
         
         Args:
             filename: Optional filename. If not provided, generates one.
             export_root: Optional directory where the file should be written.
+            encrypt: Whether to encrypt the CSV bytes before writing.
+            passphrase: Optional override for the encryption passphrase.
         
         Returns:
-            Path to the generated CSV file
+            Path to the generated file.
         """
         import csv
+        import io
         import os
         
         report = self.generate()
         
         if filename is None:
-            # Generate filename: WT_Report_EmployeeName_YYYYMMDD_YYYYMMDD.csv
             start_str = report['start_date'].strftime('%Y%m%d')
             end_str = report['end_date'].strftime('%Y%m%d')
             safe_name = "".join(c for c in report['employee'].name if c.isalnum() or c in (' ', '-', '_')).strip()
@@ -243,39 +261,49 @@ class WorkingTimeReport:
             root = export_root or os.path.join(os.getcwd(), 'exports')
             filename = os.path.join(root, f"WT_Report_{safe_name}_{start_str}_{end_str}.csv")
         
-        # Ensure exports directory exists
-        os.makedirs(os.path.dirname(filename) if os.path.dirname(filename) else 'exports', exist_ok=True)
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
         
-        with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
-            writer = csv.writer(csvfile)
-            
-            # Header
-            writer.writerow(['Working Time Report'])
-            writer.writerow(['Employee:', report['employee'].name])
-            writer.writerow(['Employee ID:', report['employee'].rfid_tag])
-            writer.writerow(['Period:', f"{report['start_date']} to {report['end_date']}"])
-            writer.writerow([])
-            
-            # Daily sessions
-            writer.writerow(['Date', 'Clock In', 'Clock Out', 'Hours Worked'])
-            for session in report['daily_sessions']:
-                writer.writerow([
-                    session['date'].strftime('%Y-%m-%d'),
-                    session['clock_in'].strftime('%H:%M:%S'),
-                    session['clock_out'].strftime('%H:%M:%S'),
-                    session['formatted_time']
-                ])
-            
-            writer.writerow([])
-            
-            # Summary
-            summary = report['summary']
-            writer.writerow(['Summary'])
-            writer.writerow(['Total Hours:', f"{summary['formatted_total']}"])
-            writer.writerow(['Days Worked:', summary['days_worked']])
-            writer.writerow(['Average Hours per Day:', f"{summary['average_hours_per_day']:.2f}"])
+        # Header
+        writer.writerow(['Working Time Report'])
+        writer.writerow(['Employee:', report['employee'].name])
+        writer.writerow(['Employee ID:', report['employee'].rfid_tag])
+        writer.writerow(['Period:', f"{report['start_date']} to {report['end_date']}"])
+        writer.writerow([])
         
-        logger.info(f"WT Report exported to {filename}")
+        # Daily sessions
+        writer.writerow(['Date', 'Clock In', 'Clock Out', 'Hours Worked (HH:MM:SS)'])
+        for session in report['daily_sessions']:
+            writer.writerow([
+                session['date'].strftime('%Y-%m-%d'),
+                session['clock_in'].strftime('%H:%M:%S'),
+                session['clock_out'].strftime('%H:%M:%S'),
+                session['formatted_time']
+            ])
+        
+        writer.writerow([])
+        
+        # Summary
+        summary = report['summary']
+        writer.writerow(['Summary'])
+        writer.writerow(['Total Hours:', f"{summary['formatted_total']}"])
+        writer.writerow(['Days Worked:', summary['days_worked']])
+        writer.writerow(['Average Hours per Day:', summary['formatted_average_per_day']])
+
+        csv_bytes = buffer.getvalue().encode('utf-8')
+
+        if encrypt:
+            if not filename.lower().endswith(".enc"):
+                filename = f"{filename}.enc"
+            passphrase = passphrase or get_export_passphrase()
+            write_encrypted_file(csv_bytes, filename, passphrase)
+            logger.info(f"WT Report encrypted export written to {filename}")
+        else:
+            os.makedirs(os.path.dirname(filename) if os.path.dirname(filename) else 'exports', exist_ok=True)
+            with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
+                csvfile.write(buffer.getvalue())
+            logger.info(f"WT Report plaintext export written to {filename}")
+
         return filename
     
     def to_text(self) -> str:
@@ -318,7 +346,7 @@ class WorkingTimeReport:
         lines.append("-" * 37)
         lines.append(f"Total Hours Worked: {summary['formatted_total']}")
         lines.append(f"Days Worked: {summary['days_worked']}")
-        lines.append(f"Average Hours per Day: {summary['average_hours_per_day']:.2f}")
+        lines.append(f"Average Hours per Day: {summary['formatted_average_per_day']}")
         lines.append("=" * 37)
         
         return "\n".join(lines)

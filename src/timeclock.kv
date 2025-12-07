@@ -115,6 +115,9 @@ WindowManager:
                     text: "CSV Export"
                     on_release: root.export_csv()
                 DebouncedButton:
+                    text: "DB Export (Encrypted)"
+                    on_release: root.export_database()
+                DebouncedButton:
                     text: "Zurück zum Zeit-Terminal"
                     background_color: 1, 0, 0, 1 # Red
                     on_release: app.root.current = "timeclock"

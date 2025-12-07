@@ -547,8 +547,28 @@ Duplicate sessions can be soft-deleted via the entry editor.
 
 | Export Type | Contents | Destination |
 |-------------|----------|-------------|
-| Raw Entries | All time entries with timestamps | `TimeEntries_YYYYMMDD.csv` |
-| WT Report | Formatted working time report | `WT_Report_<Name>_<Range>.csv` |
+| Raw Entries | All time entries with timestamps | `timeclock_export_YYYYMMDD_HHMMSS.csv.enc` |
+| WT Report | Formatted working time report | `WT_Report_<Name>_<Range>.csv.enc` |
+| Database | Full SQLite snapshot (encrypted) | `timeclock_db_YYYYMMDD_HHMMSS.sqlite.enc` |
+
+### Encryption Flow
+
+- On first launch: Register the first admin → you will immediately be prompted to set the export passphrase (used for all CSV + DB exports). If you skip, exports stay blocked and the app will re-prompt.
+- Existing deployments: If at startup an admin exists but no passphrase is set, the app prompts for it before entering the admin panel.
+- You can also preseed via env: `export TIMECLOCK_ENCRYPTION_KEY="your-strong-passphrase"`; if set, the in-app prompt is skipped.
+- Decryption (example in Python):
+  ```python
+  import base64
+  from cryptography.fernet import Fernet
+  from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+  from cryptography.hazmat.primitives import hashes
+
+  header, salt, token = data[:6], data[6:22], data[22:]
+  assert header == b"TCENC1"
+  kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=200_000)
+  key = base64.urlsafe_b64encode(kdf.derive(passphrase.encode()))
+  plaintext = Fernet(key).decrypt(token)
+  ```
 
 ### USB Auto-Export
 
