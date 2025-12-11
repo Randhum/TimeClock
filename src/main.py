@@ -13,14 +13,7 @@ See APPLICATION_FLOW_ANALYSIS.md for detailed architecture documentation.
 """
 
 import logging
-import csv
-import os
 import datetime
-import time
-import random
-import io
-import sqlite3
-import tempfile
 
 # IMPORTANT: Config must be set BEFORE importing Kivy modules
 from kivy.config import Config
@@ -42,29 +35,19 @@ Config.set('kivy', 'keyboard_layout', 'qwerty')
 # Now import Kivy modules
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.button import Button
-from kivy.uix.gridlayout import GridLayout
 from kivy.uix.label import Label
 from kivy.uix.popup import Popup
 from kivy.uix.scrollview import ScrollView
-from kivy.uix.screenmanager import ScreenManager, Screen
-from kivy.uix.textinput import TextInput
-from kivy.uix.widget import Widget
-from kivy.uix.spinner import Spinner
+from kivy.uix.screenmanager import ScreenManager
 from kivy.clock import Clock
 from kivy.core.window import Window
-from kivy.properties import ObjectProperty, StringProperty
 
 from .database import (
-    initialize_db, close_db, Employee, TimeEntry, db,
-    get_employee_by_tag, get_admin_count, create_employee, create_time_entry,
-    get_time_entries_for_export, get_all_employees, soft_delete_time_entries,
-    ensure_db_connection
+    initialize_db, close_db,
+    get_employee_by_tag, get_admin_count
 )
 from .rfid import get_rfid_provider
-from peewee import IntegrityError
-from .wt_report import WorkingTimeReport, generate_wt_report
-from .export_utils import get_export_directory, write_file
+from .wt_report import generate_wt_report
 from .screensaver import ScreensaverScreen
 
 # Import new services
@@ -109,52 +92,8 @@ Window.fullscreen = 'auto'
 Window.softinput_mode = 'below_target'
 
 # ============================================================================
-# INPUT HANDLING COMPONENTS
-# ============================================================================
-# Custom UI components for handling touchscreen and keyboard input issues
-# on Raspberry Pi/Linux environments
-# NOTE: These are now imported from presentation.widgets, but kept here for
-# backward compatibility with timeclock.kv imports
-# TODO: Update timeclock.kv to use new import paths
-
-# ============================================================================
-# SCREEN CONTROLLERS
-# ============================================================================
-# Screen classes are now imported from presentation.screens
-# All screen classes have been extracted to maintain separation of concerns
-
-# ============================================================================
-# POPUP COMPONENTS
-# ============================================================================
-# Popup dialogs are now imported from presentation.popups
-# All popup classes have been extracted to maintain separation of concerns
-
-# ============================================================================
-# REMOVED CLASSES (now imported from presentation modules)
-# ============================================================================
-# The following classes have been extracted and are now imported:
-# - TimeClockScreen, AdminScreen, IdentifyScreen, RegisterScreen,
-#   WTReportSelectEmployeeScreen, WTReportSelectDatesScreen, WTReportDisplayScreen
-#   (from presentation.screens)
-# - EntryEditorPopup, LimitedDatePickerPopup, DatePickerPopup, TimePickerPopup,
-#   AddEntryPopup (from presentation.popups)
-
-# ============================================================================
-# DATE/TIME PICKER COMPONENTS (REMOVED - now in presentation.popups)
-# ============================================================================
-# LimitedDatePickerPopup, DatePickerPopup, TimePickerPopup have been moved
-# to presentation.popups
-
-# ============================================================================
-# WORKING TIME REPORT SCREENS (REMOVED - now in presentation.screens)
-# ============================================================================
-# WTReportSelectEmployeeScreen, WTReportSelectDatesScreen, WTReportDisplayScreen
-# have been moved to presentation.screens
-
-# ============================================================================
 # APPLICATION ENTRY POINT
 # ============================================================================
-# Main application class and screen manager
 
 class WindowManager(ScreenManager):
     pass
@@ -328,41 +267,6 @@ class TimeClockApp(App):
             self.perform_clock_action(existing_employee)
         elif current_screen == 'admin':
             self.popup_service.show_info("Admin Modus", "Please switch to Timeclock mode to clock in/out.")
-        temp_path = None
-        try:
-            export_dir = get_export_directory()
-            filename = os.path.join(
-                export_dir,
-                f"timeclock_db_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.sqlite"
-            )
-
-            db_path = os.path.abspath(db.database)
-            with tempfile.NamedTemporaryFile(delete=False) as tmp:
-                temp_path = tmp.name
-
-            source_conn = sqlite3.connect(db_path, timeout=10)
-            dest_conn = sqlite3.connect(temp_path)
-            source_conn.backup(dest_conn)
-            dest_conn.close()
-            source_conn.close()
-
-            with open(temp_path, "rb") as f:
-                db_bytes = f.read()
-
-            write_file(db_bytes, filename)
-            App.get_running_app().show_popup(
-                "Export Success",
-                f"Database export saved to:\n{filename}"
-            )
-        except Exception as e:
-            logger.error(f"Database export failed: {e}")
-            App.get_running_app().show_popup("Export Error", f"Failed to export database: {str(e)}")
-        finally:
-            if temp_path and os.path.exists(temp_path):
-                try:
-                    os.remove(temp_path)
-                except Exception as cleanup_error:
-                    logger.warning(f"Could not remove temp file {temp_path}: {cleanup_error}")
 
     def perform_clock_action(self, employee):
         """Perform clock action using clock service"""
