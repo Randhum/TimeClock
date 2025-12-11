@@ -5,7 +5,7 @@ import logging
 from typing import Optional
 from dataclasses import dataclass
 
-from ..database import TimeEntry, create_time_entry
+from ..data.database import TimeEntry, create_time_entry
 from ..utils.errors import DatabaseError, InvalidActionError
 
 logger = logging.getLogger(__name__)
@@ -24,14 +24,18 @@ class ClockResult:
 class ClockService:
     """Handles clock in/out business logic"""
     
-    def __init__(self, rfid_provider=None):
+    def __init__(self, rfid_provider=None, popup_service=None, state_service=None):
         """
         Initialize clock service.
         
         Args:
             rfid_provider: RFID provider for LED feedback
+            popup_service: PopupService for showing notifications
+            state_service: StateService for managing application state
         """
         self.rfid = rfid_provider
+        self.popup_service = popup_service
+        self.state_service = state_service
     
     def clock_in_out(self, employee) -> ClockResult:
         """
@@ -59,12 +63,18 @@ class ClockService:
             if self.rfid:
                 self.rfid.indicate_success()
             
-            return ClockResult(
+            # Update state using state service
+            if self.state_service:
+                self.state_service.set_last_clocked_employee(employee)
+            
+            result = ClockResult(
                 success=True,
                 action=action,
                 employee=employee,
                 entry=entry
             )
+            
+            return result
             
         except Exception as e:
             logger.error(f"Error performing clock action: {e}")
@@ -72,6 +82,10 @@ class ClockService:
             # Signal error via RFID if available
             if self.rfid:
                 self.rfid.indicate_error()
+            
+            # Show error popup using popup service
+            if self.popup_service:
+                self.popup_service.show_error("Error", f"Failed to record time: {str(e)}")
             
             return ClockResult(
                 success=False,

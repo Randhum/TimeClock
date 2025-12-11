@@ -9,7 +9,7 @@ This module implements the Presentation Layer of the TimeClock application:
 - Input Handling: Custom components for touchscreen/keyboard issues
 - Application Entry Point: Main app class and screen manager
 
-See APPLICATION_FLOW_ANALYSIS.md for detailed architecture documentation.
+See ARCHITECTURE.md for detailed architecture documentation.
 """
 
 import logging
@@ -34,29 +34,25 @@ Config.set('kivy', 'keyboard_layout', 'qwerty')
 
 # Now import Kivy modules
 from kivy.app import App
-from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.label import Label
-from kivy.uix.popup import Popup
-from kivy.uix.scrollview import ScrollView
 from kivy.uix.screenmanager import ScreenManager
 from kivy.clock import Clock
 from kivy.core.window import Window
 
-from .database import (
+from .data.database import (
     initialize_db, close_db,
     get_employee_by_tag, get_admin_count
 )
-from .rfid import get_rfid_provider
-from .wt_report import generate_wt_report
-from .screensaver import ScreensaverScreen
+from .hardware.rfid import get_rfid_provider
+from .services.report_service import generate_wt_report
+from .presentation.screens.screensaver_screen import ScreensaverScreen
 
 # Import new services
 from .services.clock_service import ClockService
 from .services.state_service import StateService
 from .services.popup_service import PopupService
 
-# Import extracted widgets
-from .presentation.widgets import DebouncedButton, FilteredTextInput, GlobalInputFilter, GlobalKeyFilter
+# Import extracted widgets (needed for KV file imports)
+from .presentation.widgets import DebouncedButton, FilteredTextInput, GlobalInputFilter, GlobalKeyFilter, GlobalInputFilter, GlobalKeyFilter
 
 # Import extracted popups
 from .presentation.popups import (
@@ -111,15 +107,24 @@ class TimeClockApp(App):
         self.popup_service = PopupService()
         self.clock_service = None  # Will be initialized after RFID is ready
         self.rfid = None
+        
+        # Set KV file path - Kivy will load it automatically with correct context
+        import os
+        kv_path = os.path.join(os.path.dirname(__file__), 'presentation', 'timeclock.kv')
+        if os.path.exists(kv_path):
+            self.kv_file = kv_path
+        else:
+            self.kv_file = None
 
     def build(self):
         """Build UI - delegate to services"""
-        # Initialize database and RFID before returning root (which is auto-loaded from KV file)
+        
+        # Initialize database and RFID before returning root
         initialize_db()
         self.rfid = get_rfid_provider(self.on_rfid_scan, use_mock=False)  # Attempt real, fallback to mock
         self.rfid.start()
         
-        # Initialize clock service with RFID
+        # Initialize clock service with RFID and other services
         self.clock_service = ClockService(self.rfid, self.popup_service, self.state_service)
         
         # Global input de-duplication (touch) to suppress double events everywhere
@@ -280,11 +285,8 @@ class TimeClockApp(App):
             msg = f"Clocked {result.action.upper()} - {result.employee.name}"
             self.root.get_screen('timeclock').update_status(msg)
             
-            # Update state using state service
-            self.state_service.set_last_clocked_employee(result.employee)
-        else:
-            # Handle error using popup service
-            self.popup_service.show_error("Error", f"Failed to record time: {result.error}")
+            # Note: State is now updated by ClockService internally
+        # Note: Errors are now handled by ClockService internally
 
     def edit_today_sessions(self):
         """Edit today's sessions - uses state service"""
@@ -315,47 +317,8 @@ class TimeClockApp(App):
         report = generate_wt_report(employee, today, today)
         text = report.to_text()
         
-        # Create scrollable content
-        content = BoxLayout(orientation='vertical', spacing=10, padding=10)
-        
-        scroll = ScrollView(
-            size_hint=(1, 1),
-            do_scroll_x=False,
-            bar_width=10
-        )
-        
-        label = Label(
-            text=text,
-            font_size='16sp',
-            halign='left',
-            valign='top',
-            size_hint_y=None,
-            text_size=(460, None),
-            markup=True
-        )
-        # Bind height to texture size for proper scrolling
-        label.bind(texture_size=lambda inst, size: setattr(inst, 'height', size[1]))
-        
-        scroll.add_widget(label)
-        content.add_widget(scroll)
-        
-        # Add close button
-        close_btn = DebouncedButton(
-            text="Schließen",
-            size_hint_y=None,
-            height='50dp',
-            background_color=(0.3, 0.6, 0.9, 1)
-        )
-        content.add_widget(close_btn)
-        
-        popup = Popup(
-            title=f"Tagesbericht - {employee.name}",
-            content=content,
-            size_hint=(0.95, 0.95),
-            auto_dismiss=True
-        )
-        close_btn.bind(on_release=popup.dismiss)
-        popup.open()
+        # Use popup service to show report
+        self.popup_service.show_report(f"Tagesbericht - {employee.name}", text)
     
     def _request_badge_identification(self, action_type):
         """

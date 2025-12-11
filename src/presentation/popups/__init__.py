@@ -8,6 +8,8 @@ from .entry_editor_popup import EntryEditorPopup
 from .limited_date_picker_popup import LimitedDatePickerPopup
 from .date_picker_popup import DatePickerPopup
 from .time_picker_popup import TimePickerPopup
+from .hour_picker_popup import HourPickerPopup
+from .minute_picker_popup import MinutePickerPopup
 from .add_entry_popup import AddEntryPopup
 
 __all__ = [
@@ -17,6 +19,8 @@ __all__ = [
     'LimitedDatePickerPopup',
     'DatePickerPopup',
     'TimePickerPopup',
+    'HourPickerPopup',
+    'MinutePickerPopup',
     'AddEntryPopup',
 ]
 

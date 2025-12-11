@@ -5,8 +5,8 @@ import logging
 from kivy.uix.screenmanager import Screen
 from kivy.app import App
 
-from src.database import get_all_employees
-from src.presentation.widgets import DebouncedButton
+from ...data.database import get_all_employees
+from ..widgets import DebouncedButton
 
 logger = logging.getLogger(__name__)
 

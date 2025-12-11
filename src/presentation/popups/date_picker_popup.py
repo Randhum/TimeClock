@@ -9,9 +9,10 @@ from kivy.uix.gridlayout import GridLayout
 from kivy.uix.label import Label
 from kivy.uix.widget import Widget
 from kivy.uix.button import Button
+from kivy.uix.scrollview import ScrollView
 from kivy.properties import ObjectProperty
 
-from src.presentation.widgets import DebouncedButton
+from ..widgets import DebouncedButton
 
 logger = logging.getLogger(__name__)
 
@@ -86,11 +87,19 @@ class DatePickerPopup(Popup):
             day_header.add_widget(label)
         left_panel.add_widget(day_header)
         
-        # Days grid - Fills remaining vertical space
-        days_grid = GridLayout(cols=7, spacing=3)
+        # Days grid - Scrollable
+        days_scroll = ScrollView(
+            do_scroll_x=False,
+            do_scroll_y=True,
+            bar_width=10,
+            size_hint_y=1
+        )
+        days_grid = GridLayout(cols=7, spacing=3, size_hint_y=None)
+        days_grid.bind(minimum_height=days_grid.setter('height'))
         self.days_grid = days_grid
         self.day_buttons = []
-        left_panel.add_widget(days_grid)
+        days_scroll.add_widget(days_grid)
+        left_panel.add_widget(days_scroll)
         
         main_layout.add_widget(left_panel)
         
@@ -207,7 +216,8 @@ class DatePickerPopup(Popup):
         
         # Add empty cells
         for _ in range(first_weekday):
-            self.days_grid.add_widget(Widget())
+            empty = Widget(size_hint_y=None, height='50dp')
+            self.days_grid.add_widget(empty)
         
         today = datetime.date.today()
         for day in range(1, days_in_month + 1):
@@ -228,6 +238,8 @@ class DatePickerPopup(Popup):
             btn = DebouncedButton(
                 text=str(day),
                 font_size='18sp',
+                size_hint_y=None,
+                height='50dp',
                 background_color=bg_color,
                 color=text_color
             )
@@ -241,7 +253,8 @@ class DatePickerPopup(Popup):
         total_slots = rows_needed * 7
         
         for _ in range(total_slots - total_cells):
-            self.days_grid.add_widget(Widget())
+            empty = Widget(size_hint_y=None, height='50dp')
+            self.days_grid.add_widget(empty)
     
     def _select_day(self, day):
         """Select a day"""

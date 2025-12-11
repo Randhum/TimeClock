@@ -127,7 +127,7 @@ class GreeterPopup(Popup):
         action_part = 'in' if action == 'in' else 'out'
         # Get path relative to src directory
         base_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        return os.path.join(base_path, 'greetings', f'greetings_{action_part}_{shift}_{language}.txt')
+        return os.path.join(base_path, 'data', 'greetings', f'greetings_{action_part}_{shift}_{language}.txt')
 
     def _get_random_message(self, filename, default_msg, employee_name):
         """Load a random message from a file, replace [Name] placeholder, or return default if failed"""
@@ -146,6 +146,8 @@ class GreeterPopup(Popup):
                         message = random.choice(lines)
                         # Replace [Name] placeholder with actual employee name
                         message = message.replace('[Name]', employee_name)
+                        # Convert literal \n strings to actual newlines
+                        message = message.replace('\\n', '\n')
                         return message
         except Exception as e:
             logger.warning(f"Error loading greeting from {filename}: {e}")
@@ -153,7 +155,7 @@ class GreeterPopup(Popup):
         # Fallback to general greeting files if specific shift file not found
         import os
         base_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        fallback_file = os.path.join(base_path, 'greetings', 'greetings_in.txt' if 'in' in filename else 'greetings_out.txt')
+        fallback_file = os.path.join(base_path, 'data', 'greetings', 'greetings_in.txt' if 'in' in filename else 'greetings_out.txt')
         try:
             if os.path.exists(fallback_file):
                 with open(fallback_file, 'r', encoding='utf-8') as f:
@@ -165,6 +167,8 @@ class GreeterPopup(Popup):
                     if lines:
                         message = random.choice(lines)
                         message = message.replace('[Name]', employee_name)
+                        # Convert literal \n strings to actual newlines
+                        message = message.replace('\\n', '\n')
                         return message
         except Exception as e:
             logger.warning(f"Error loading fallback greeting from {fallback_file}: {e}")

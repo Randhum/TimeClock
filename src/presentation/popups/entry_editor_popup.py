@@ -12,10 +12,10 @@ from kivy.uix.button import Button
 from kivy.app import App
 from kivy.clock import Clock
 
-from src.presentation.widgets import DebouncedButton
-from src.presentation.popups.limited_date_picker_popup import LimitedDatePickerPopup
-from src.presentation.popups.add_entry_popup import AddEntryPopup
-from src.database import TimeEntry, db, ensure_db_connection, soft_delete_time_entries
+from ..widgets import DebouncedButton
+from .limited_date_picker_popup import LimitedDatePickerPopup
+from .add_entry_popup import AddEntryPopup
+from ...data.database import TimeEntry, db, ensure_db_connection, soft_delete_time_entries
 
 logger = logging.getLogger(__name__)
 

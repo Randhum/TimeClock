@@ -2,7 +2,7 @@ import threading
 import time
 import logging
 import queue
-from libraries.pcprox import open_pcprox
+from .pcprox import open_pcprox
 
 logger = logging.getLogger(__name__)
 

@@ -9,6 +9,7 @@ from .register_screen import RegisterScreen
 from .wtreport_select_employee_screen import WTReportSelectEmployeeScreen
 from .wtreport_select_dates_screen import WTReportSelectDatesScreen
 from .wtreport_display_screen import WTReportDisplayScreen
+from .screensaver_screen import ScreensaverScreen, MatrixRain
 
 __all__ = [
     'TimeClockScreen',
@@ -18,4 +19,6 @@ __all__ = [
     'WTReportSelectEmployeeScreen',
     'WTReportSelectDatesScreen',
     'WTReportDisplayScreen',
+    'ScreensaverScreen',
+    'MatrixRain',
 ]

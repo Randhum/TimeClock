@@ -91,19 +91,29 @@ TimeClock follows a **layered architecture** with clear separation of concerns:
 - Centralized popup management
 - `show_info()`, `show_error()`, `show_success()`, `show_greeter()`
 
-### Data Layer (`src/database.py`)
+### Data Layer (`src/data/database.py`)
 
 - **Models**: `Employee`, `TimeEntry`
 - **Queries**: Tag lookup, entry retrieval, export queries
 - **Transactions**: Atomic operations with explicit commits
 - **Soft Delete**: Entries marked `active=False` for audit trail
 
-### Hardware Layer (`src/rfid.py`)
+**Static Data** (`src/data/greetings/`):
+- Greeting message files for different languages and shifts
 
+### Hardware Layer (`src/hardware/`)
+
+**RFID Abstraction** (`rfid.py`):
 - **RFIDProvider**: Abstract base class
 - **PcProxRFIDProvider**: Real hardware implementation
 - **MockRFIDProvider**: Development/testing fallback
 - Background thread polling with main-thread callbacks
+
+**Hardware Drivers**:
+- `pcprox.py` - pcProx RFID reader driver
+- `configure.py` - Hardware configuration utilities
+- `usbtest.py` - USB device testing utilities
+- `protocol.md` - Hardware protocol documentation
 
 ---
 
@@ -112,25 +122,44 @@ TimeClock follows a **layered architecture** with clear separation of concerns:
 ```
 src/
 ├── main.py                    # Application entry point
-├── database.py                # Data models and queries
-├── rfid.py                    # RFID hardware abstraction
-├── wt_report.py              # Report generation engine
-├── export_utils.py           # Export utilities
-├── screensaver.py            # Screensaver screen
-├── timeclock.kv              # UI layout definitions
 │
 ├── services/                 # Business logic layer
 │   ├── clock_service.py      # Clock in/out logic
 │   ├── state_service.py      # State management
-│   └── popup_service.py      # Popup management
+│   ├── popup_service.py      # Popup management
+│   └── report_service.py     # Report generation engine
 │
 ├── presentation/             # UI layer
+│   ├── timeclock.kv          # UI layout definitions
 │   ├── screens/              # Screen controllers
+│   │   ├── timeclock_screen.py
+│   │   ├── admin_screen.py
+│   │   ├── register_screen.py
+│   │   ├── identify_screen.py
+│   │   ├── screensaver_screen.py
+│   │   └── wtreport_*.py
 │   ├── popups/               # Popup components
+│   │   ├── greeter_popup.py
+│   │   ├── badge_identification_popup.py
+│   │   ├── entry_editor_popup.py
+│   │   ├── add_entry_popup.py
+│   │   └── *_picker_popup.py
 │   └── widgets/              # Custom widgets
+│       ├── debounced_button.py
+│       ├── filtered_text_input.py
+│       └── input_filters.py
 │
-└── utils/                    # Utilities
-    └── errors.py             # Error classes
+├── hardware/                 # Hardware layer
+│   ├── pcprox.py             # RFID reader driver
+│   ├── configure.py          # Hardware configuration
+│   └── usbtest.py            # USB testing utilities
+│
+├── utils/                    # Utilities
+│   ├── errors.py             # Error classes
+│   └── export_utils.py       # Export utilities
+│
+└── data/                     # Data files
+    └── greetings/            # Greeting message files
 ```
 
 ---
