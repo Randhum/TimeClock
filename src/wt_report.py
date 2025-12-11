@@ -123,13 +123,19 @@ class WorkingTimeReport:
             sessions = self._process_day_entries(day_entries)
             
             for session in sessions:
+                # Calculate hours and minutes from total_seconds
+                total_seconds = session.get('total_seconds', session['total_minutes'] * 60)
+                hours = total_seconds / 3600.0
+                minutes = total_seconds / 60.0
+                
                 self.daily_sessions.append({
                     'date': date,
                     'clock_in': session['clock_in'],
                     'clock_out': session['clock_out'],
-                    'hours': session['hours'],
-                    'minutes': session['minutes'],
+                    'hours': hours,
+                    'minutes': minutes,
                     'total_minutes': session['total_minutes'],
+                    'total_seconds': session.get('total_seconds', session['total_minutes'] * 60),
                     'formatted_time': session['formatted_time']
                 })
     

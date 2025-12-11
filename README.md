@@ -157,12 +157,19 @@ On first launch, you'll be prompted to register an **administrator**. This step 
 
 ### Custom Greeting Messages
 
-You can customize the messages displayed when employees clock in or out by editing the text files in the application root:
+You can customize the messages displayed when employees clock in or out by editing text files in the `src/greetings/` directory:
 
-- **Clock In Messages**: `greetings_in.txt` - Add one message per line.
-- **Clock Out Messages**: `greetings_out.txt` - Add one message per line.
+- **Shift-specific files**: `greetings_in_morning_de.txt`, `greetings_out_evening_ch.txt`, etc.
+  - Format: `greetings_{in|out}_{morning|midday|evening}_{ch|de|it|rm}.txt`
+  - Languages: `ch` (Schweizerdeutsch), `de` (Deutsch), `it` (Italienisch), `rm` (Rätoromanisch)
+- **Fallback files**: `greetings_in.txt`, `greetings_out.txt`
+- **Random Selection**: Messages are randomly selected from appropriate files based on:
+  - Current shift (morning/midday/evening)
+  - Clock action (in/out)
+  - Employee language preference (determined by entropy)
+- **Placeholders**: Use `[Name]` in messages to insert employee's first name
 
-If these files are missing or empty, default messages will be used.
+If files are missing or empty, default messages will be used.
 
 ### RFID Provider
 
@@ -416,12 +423,43 @@ sudo systemctl daemon-reload
 
 | Module | Purpose |
 |--------|---------|
-| `main.py` | Application entry point, screen controllers, event routing |
+| `main.py` | Application entry point, screen controllers, popup components, input handling, event routing |
 | `timeclock.kv` | Declarative UI layout using Kivy language |
 | `database.py` | Data models, queries, transaction management |
 | `rfid.py` | RFID hardware abstraction, background polling |
 | `wt_report.py` | Working time calculations, report formatting |
 | `export_utils.py` | Export path resolution, USB detection |
+| `screensaver.py` | Screensaver screen with Matrix-style animation |
+
+### main.py Structure
+
+The `main.py` file is organized into clear architectural sections:
+
+1. **Configuration & Setup** - Kivy configuration, logging, window settings
+2. **Input Handling Components** - Custom widgets for touchscreen/keyboard issues:
+   - `DebouncedButton` - Prevents double-clicks
+   - `FilteredTextInput` - Filters duplicate keystrokes
+   - `GlobalInputFilter` - App-wide touch event deduplication
+   - `GlobalKeyFilter` - App-wide keyboard deduplication
+3. **Screen Controllers** - Screen classes managing UI state:
+   - `TimeClockScreen` - Main clock in/out interface
+   - `AdminScreen` - Admin panel with export functions
+   - `RegisterScreen` - Employee registration
+   - `IdentifyScreen` - RFID tag identification
+   - `WTReportSelectEmployeeScreen` - Employee selection for reports
+   - `WTReportSelectDatesScreen` - Date range selection
+   - `WTReportDisplayScreen` - Report display
+4. **Popup Components** - Dialog components:
+   - `GreeterPopup` - Welcome/goodbye messages with random selection
+   - `BadgeIdentificationPopup` - Badge scan prompt
+   - `EntryEditorPopup` - Edit/manage time entries (supports past 7 days)
+   - `LimitedDatePickerPopup` - Date picker with min/max limits
+   - `DatePickerPopup` - Full date picker
+   - `TimePickerPopup` - Time selection
+   - `AddEntryPopup` - Manual entry form
+5. **Application Entry Point**:
+   - `WindowManager` - Screen manager
+   - `TimeClockApp` - Main application class
 
 ---
 
@@ -498,6 +536,15 @@ After each clock action, employees see a brief overlay:
 - Total hours worked today
 - Quick buttons to view/edit sessions (visible for 5 seconds)
 - Useful for catching duplicate scans immediately
+
+### Entry Editing
+
+Employees can edit their time entries:
+
+- **Date Selection**: Choose from past 7 days (not just today)
+- **Manual Entry**: Add clock in/out entries for any date in the past 7 days
+- **Entry Deletion**: Remove erroneous entries with automatic action correction
+- **Badge Identification**: Required after 5-second grace period for security
 
 ---
 
