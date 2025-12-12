@@ -51,21 +51,20 @@ Once registered, the administrator badge can be used to access all management fu
 ### Viewing Today's Summary
 
 After each clock action, you'll see:
-- A brief summary showing total hours worked today
-- Two action buttons (visible for 5 seconds):
-  - **View Today's Report** - See detailed breakdown of today's sessions
+- A friendly greeting message (disappears after 3 seconds)
+- A status message showing your clock action (e.g., "Clocked IN - Your Name")
+- Two action buttons that are always available:
+  - **View Today's Sessions** - See detailed breakdown of today's sessions
   - **Edit Today's Sessions** - Remove duplicate scans or correct errors
 
-**After 5 seconds:**
-- The action buttons disappear
-- To access these features later, you'll need to scan your badge again for identification
+**Note:** The action buttons remain visible at all times. If you click them after the initial grace period (2 minutes), you'll need to scan your badge again for identification.
 
 ### Editing Your Time Entries
 
 You can edit your time entries from the past 7 days:
 
-1. **Within 5 seconds of clocking:** Click **Edit Today's Sessions**
-2. **After 5 seconds:** Scan your badge when prompted
+1. **Within 2 minutes of clocking:** Click **Edit Today's Sessions** (no badge scan needed)
+2. **After 2 minutes:** Click **Edit Today's Sessions** and scan your badge when prompted
 3. Select the date you want to edit (past 7 days only)
 4. View all entries for that day
 5. Select entries to delete (removes duplicate scans)
@@ -165,8 +164,8 @@ To check which employee a badge belongs to:
 **Problem:** Employee accidentally scanned badge twice, creating duplicate entries.
 
 **Solution:**
-1. Within 5 seconds of clocking: Click **Edit Today's Sessions**
-2. Or scan badge → **Edit Today's Sessions**
+1. Click **Edit Today's Sessions** (within 2 minutes of clocking, no badge scan needed)
+2. Or scan badge → **Edit Today's Sessions** (if more than 2 minutes have passed)
 3. Select the date
 4. Check the duplicate entries
 5. Click **Delete Selected**
@@ -260,7 +259,7 @@ The system will automatically pair this with the existing clock-in entry.
 
 - **Scan once:** The system debounces rapid scans, but it's best to scan once and wait for confirmation
 - **Check your status:** After scanning, verify the greeting message shows the correct action (IN/OUT)
-- **Use the 5-second window:** If you notice an error immediately after clocking, use the quick action buttons
+- **Use the action buttons:** If you notice an error after clocking, use the action buttons to quickly edit your sessions
 - **Regular checks:** Periodically review your time entries to catch any issues early
 
 ### For Administrators

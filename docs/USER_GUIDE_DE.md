@@ -49,21 +49,20 @@ Nach der Registrierung kann der Administrator-Badge verwendet werden, um auf all
 ### Anzeige der Tageszusammenfassung
 
 Nach jeder Stempelaktion sehen Sie:
-- Eine kurze Zusammenfassung mit den heute geleisteten Gesamtstunden
-- Zwei Aktionsschaltflächen (für 5 Sekunden sichtbar):
-  - **Heutigen Report anzeigen** - Detaillierte Aufschlüsselung der heutigen Sitzungen
+- Eine freundliche Begrüßungsnachricht (verschwindet nach 3 Sekunden)
+- Eine Statusmeldung, die Ihre Stempelaktion anzeigt (z.B. "Eingestempelt - Ihr Name")
+- Zwei Aktionsschaltflächen, die immer verfügbar sind:
+  - **Heutige Sitzungen anzeigen** - Detaillierte Aufschlüsselung der heutigen Sitzungen
   - **Heutige Sitzungen bearbeiten** - Doppelte Scans entfernen oder Fehler korrigieren
 
-**Nach 5 Sekunden:**
-- Die Aktionsschaltflächen verschwinden
-- Um später auf diese Funktionen zuzugreifen, müssen Sie Ihren Badge erneut scannen zur Identifikation
+**Hinweis:** Die Aktionsschaltflächen bleiben jederzeit sichtbar. Wenn Sie sie nach der anfänglichen Gnadenfrist (2 Minuten) anklicken, müssen Sie Ihren Badge erneut scannen zur Identifikation.
 
 ### Bearbeitung Ihrer Zeiteinträge
 
 Sie können Ihre Zeiteinträge der letzten 7 Tage bearbeiten:
 
-1. **Innerhalb von 5 Sekunden nach dem Stempeln:** Klicken Sie auf **Heutige Sitzungen bearbeiten**
-2. **Nach 5 Sekunden:** Scannen Sie den Badge, wenn dazu aufgefordert
+1. **Innerhalb von 2 Minuten nach dem Stempeln:** Klicken Sie auf **Heutige Sitzungen bearbeiten** (kein Badge-Scan erforderlich)
+2. **Nach 2 Minuten:** Klicken Sie auf **Heutige Sitzungen bearbeiten** und scannen Sie den Badge, wenn dazu aufgefordert
 3. Wählen Sie das Datum aus, das Sie bearbeiten möchten (nur letzte 7 Tage)
 4. Zeigen Sie alle Einträge für diesen Tag an
 5. Wählen Sie Einträge zum Löschen aus (entfernt doppelte Scans)
@@ -163,8 +162,8 @@ Um zu überprüfen, welchem Mitarbeiter ein Badge gehört:
 **Problem:** Mitarbeiter hat versehentlich den Badge zweimal gescannt, wodurch doppelte Einträge entstanden sind.
 
 **Lösung:**
-1. Innerhalb von 5 Sekunden nach dem Stempeln: Klicken Sie auf **Heutige Sitzungen bearbeiten**
-2. Oder scannen Sie Badge → **Heutige Sitzungen bearbeiten**
+1. Klicken Sie auf **Heutige Sitzungen bearbeiten** (innerhalb von 2 Minuten nach dem Stempeln, kein Badge-Scan erforderlich)
+2. Oder scannen Sie Badge → **Heutige Sitzungen bearbeiten** (wenn mehr als 2 Minuten vergangen sind)
 3. Wählen Sie das Datum aus
 4. Aktivieren Sie die doppelten Einträge
 5. Klicken Sie auf **Ausgewählte löschen**
@@ -258,7 +257,7 @@ Das System wird dies automatisch mit dem vorhandenen Einstempel-Eintrag paaren.
 
 - **Einmal scannen:** Das System verhindert schnelle Scans, aber es ist am besten, einmal zu scannen und auf die Bestätigung zu warten
 - **Status überprüfen:** Nach dem Scannen überprüfen Sie, dass die Begrüßungsnachricht die richtige Aktion zeigt (EIN/AUS)
-- **5-Sekunden-Fenster nutzen:** Wenn Sie sofort nach dem Stempeln einen Fehler bemerken, verwenden Sie die Schnellaktions-Schaltflächen
+- **Aktionsschaltflächen nutzen:** Wenn Sie nach dem Stempeln einen Fehler bemerken, verwenden Sie die Aktionsschaltflächen, um Ihre Sitzungen schnell zu bearbeiten
 - **Regelmäßige Überprüfungen:** Überprüfen Sie regelmäßig Ihre Zeiteinträge, um Probleme frühzeitig zu erkennen
 
 ### Für Administratoren

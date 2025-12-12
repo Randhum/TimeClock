@@ -49,21 +49,20 @@ Una volta registrato, il badge dell'amministratore può essere utilizzato per ac
 ### Visualizzazione Riepilogo Giornaliero
 
 Dopo ogni azione di timbratura, vedrai:
-- Un breve riepilogo che mostra le ore totali lavorate oggi
-- Due pulsanti di azione (visibili per 5 secondi):
-  - **Visualizza Report Oggi** - Vedi il dettaglio delle sessioni di oggi
+- Un messaggio di benvenuto amichevole (scompare dopo 3 secondi)
+- Un messaggio di stato che mostra la tua azione di timbratura (es. "Timbrato IN - Il Tuo Nome")
+- Due pulsanti di azione sempre disponibili:
+  - **Visualizza Sessioni Oggi** - Vedi il dettaglio delle sessioni di oggi
   - **Modifica Sessioni Oggi** - Rimuovi scansioni duplicate o correggi errori
 
-**Dopo 5 secondi:**
-- I pulsanti di azione scompaiono
-- Per accedere a queste funzioni in seguito, dovrai scansionare nuovamente il badge per l'identificazione
+**Nota:** I pulsanti di azione rimangono sempre visibili. Se li clicchi dopo il periodo di grazia iniziale (2 minuti), dovrai scansionare nuovamente il badge per l'identificazione.
 
 ### Modifica delle Tue Timbrature
 
 Puoi modificare le tue timbrature degli ultimi 7 giorni:
 
-1. **Entro 5 secondi dalla timbratura:** Clicca **Modifica Sessioni Oggi**
-2. **Dopo 5 secondi:** Scansiona il badge quando richiesto
+1. **Entro 2 minuti dalla timbratura:** Clicca **Modifica Sessioni Oggi** (nessuna scansione badge necessaria)
+2. **Dopo 2 minuti:** Clicca **Modifica Sessioni Oggi** e scansiona il badge quando richiesto
 3. Seleziona la data che vuoi modificare (solo ultimi 7 giorni)
 4. Visualizza tutte le timbrature di quel giorno
 5. Seleziona le timbrature da eliminare (rimuove scansioni duplicate)
@@ -163,8 +162,8 @@ Per verificare a quale dipendente appartiene un badge:
 **Problema:** Il dipendente ha scansionato accidentalmente il badge due volte, creando timbrature duplicate.
 
 **Soluzione:**
-1. Entro 5 secondi dalla timbratura: Clicca **Modifica Sessioni Oggi**
-2. Oppure scansiona badge → **Modifica Sessioni Oggi**
+1. Clicca **Modifica Sessioni Oggi** (entro 2 minuti dalla timbratura, nessuna scansione badge necessaria)
+2. Oppure scansiona badge → **Modifica Sessioni Oggi** (se sono passati più di 2 minuti)
 3. Seleziona la data
 4. Seleziona le timbrature duplicate
 5. Clicca **Elimina Selezionate**
@@ -258,7 +257,7 @@ Il sistema abbinerà automaticamente questa timbratura con l'ingresso esistente.
 
 - **Scansiona una volta:** Il sistema evita le scansioni rapide, ma è meglio scansionare una volta e attendere la conferma
 - **Controlla il tuo stato:** Dopo la scansione, verifica che il messaggio di benvenuto mostri l'azione corretta (INGRESSO/USCITA)
-- **Usa la finestra di 5 secondi:** Se noti un errore immediatamente dopo la timbratura, usa i pulsanti di azione rapida
+- **Usa i pulsanti di azione:** Se noti un errore dopo la timbratura, usa i pulsanti di azione per modificare rapidamente le tue sessioni
 - **Controlli regolari:** Rivedi periodicamente le tue timbrature per individuare eventuali problemi in anticipo
 
 ### Per gli Amministratori

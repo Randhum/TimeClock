@@ -409,14 +409,18 @@ logging.basicConfig(level=logging.DEBUG)
 
 ---
 
-## Future Roadmap
+## Credits
 
-MIT License. See [LICENSE](LICENSE) for details.
+This project was inspired by [RPI TimeClock Terminal](https://github.com/niclasku/rpi-timeclock-terminal) from [niclasku](https://github.com/niclasku).
 
 ---
 
-## Credits
 
-This project is a fork of [RPI TimeClock Terminal](https://github.com/niclasku/rpi-timeclock-terminal) by [niclasku](https://github.com/niclasku).
+## License 
+
+MIT License. See [LICENSE](LICENSE) for details.
+
+
+
 
 
