@@ -2,6 +2,8 @@
 
 > Complete guide for end users and administrators
 
+**Translations:** [Deutsch (German)](USER_GUIDE_DE.md) | [Italiano (Italian)](USER_GUIDE_IT.md)
+
 ---
 
 ## Table of Contents
