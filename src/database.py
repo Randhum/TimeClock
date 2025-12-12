@@ -1,10 +1,64 @@
+"""
+Database module for TimeClock application.
+Uses SQLCipher for transparent AES-256 encryption at rest.
+"""
 import datetime
 import logging
-from peewee import *
+import os
+import sys
+
+from peewee import (
+    Model, CharField, BooleanField, DateTimeField, ForeignKeyField, IntegrityError
+)
 
 logger = logging.getLogger(__name__)
 
-db = SqliteDatabase('timeclock.db')
+# Environment variable for the encryption key
+ENV_KEY_NAME = "TIMECLOCK_ENV_KEY"
+DB_FILE = "timeclock.db"
+
+
+def _get_database():
+    """
+    Create and return the appropriate database connection.
+    Uses SQLCipher if TIMECLOCK_ENV_KEY is set, otherwise falls back to plain SQLite.
+    """
+    passphrase = os.getenv(ENV_KEY_NAME)
+    
+    if passphrase:
+        # Use SQLCipher for encrypted database
+        try:
+            from playhouse.sqlcipher_ext import SqlCipherDatabase
+            logger.info("SQLCipher encryption enabled")
+            return SqlCipherDatabase(
+                DB_FILE,
+                passphrase=passphrase,
+                # SQLCipher 4.x settings for maximum security
+                pragmas={
+                    'kdf_iter': 256000,  # Key derivation iterations
+                    'cipher_page_size': 4096,
+                    'cipher_use_hmac': True,
+                }
+            )
+        except ImportError:
+            logger.error(
+                "SQLCipher not available! Install with: pip install sqlcipher3-binary\n"
+                "Database will NOT be encrypted."
+            )
+            # Fall through to plain SQLite
+    else:
+        logger.warning(
+            f"No encryption key set. Set {ENV_KEY_NAME} environment variable "
+            "for encrypted database. Running with UNENCRYPTED database!"
+        )
+    
+    # Fallback to plain SQLite (development/unset key)
+    from peewee import SqliteDatabase
+    return SqliteDatabase(DB_FILE)
+
+
+# Initialize database connection
+db = _get_database()
 
 
 class BaseModel(Model):
@@ -52,6 +106,15 @@ class TimeEntry(BaseModel):
         ).order_by(TimeEntry.timestamp.desc()).first()
 
 
+def is_encrypted() -> bool:
+    """Check if the database is using SQLCipher encryption."""
+    try:
+        from playhouse.sqlcipher_ext import SqlCipherDatabase
+        return isinstance(db, SqlCipherDatabase)
+    except ImportError:
+        return False
+
+
 def ensure_db_connection():
     """Ensure database connection is open"""
     if db.is_closed():
@@ -88,6 +151,13 @@ def initialize_db():
     """Initialize database connection and create tables"""
     try:
         ensure_db_connection()
+        
+        # Log encryption status
+        if is_encrypted():
+            logger.info("Database is ENCRYPTED with SQLCipher")
+        else:
+            logger.warning("Database is NOT encrypted!")
+        
         db.create_tables([Employee, TimeEntry], safe=True)
         _ensure_timeentry_active_column()
         db.commit()
@@ -202,3 +272,67 @@ def get_time_entries_for_export():
         Employee.active == True,
         TimeEntry.active == True
     ).order_by(TimeEntry.timestamp.desc())
+
+
+# --- Migration Utility ---
+
+def migrate_to_encrypted(passphrase: str, source_db: str = "timeclock.db", 
+                         target_db: str = "timeclock_encrypted.db") -> bool:
+    """
+    Migrate an unencrypted database to an encrypted one.
+    
+    Args:
+        passphrase: The encryption passphrase to use
+        source_db: Path to the unencrypted source database
+        target_db: Path for the new encrypted database
+    
+    Returns:
+        True if migration succeeded, False otherwise
+    """
+    try:
+        from playhouse.sqlcipher_ext import SqlCipherDatabase
+    except ImportError:
+        logger.error("SQLCipher not available. Install with: pip install sqlcipher3-binary")
+        return False
+    
+    import sqlite3
+    
+    if not os.path.exists(source_db):
+        logger.error(f"Source database not found: {source_db}")
+        return False
+    
+    if os.path.exists(target_db):
+        logger.error(f"Target database already exists: {target_db}")
+        return False
+    
+    try:
+        # Open source (unencrypted)
+        source_conn = sqlite3.connect(source_db)
+        
+        # Create encrypted target
+        encrypted_db = SqlCipherDatabase(
+            target_db,
+            passphrase=passphrase,
+            pragmas={
+                'kdf_iter': 256000,
+                'cipher_page_size': 4096,
+                'cipher_use_hmac': True,
+            }
+        )
+        encrypted_db.connect()
+        
+        # Get the raw connection for ATTACH
+        target_conn = encrypted_db.connection()
+        
+        # Backup source to target
+        source_conn.backup(target_conn)
+        
+        source_conn.close()
+        encrypted_db.close()
+        
+        logger.info(f"Successfully migrated {source_db} -> {target_db} (encrypted)")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Migration failed: {e}")
+        return False
