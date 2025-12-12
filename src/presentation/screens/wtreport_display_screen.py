@@ -7,7 +7,7 @@ from kivy.properties import ObjectProperty
 from kivy.app import App
 from kivy.clock import Clock
 
-from src.export_utils import get_export_directory
+from ...utils.export_utils import get_export_directory
 
 logger = logging.getLogger(__name__)
 

@@ -322,26 +322,35 @@ sudo systemctl daemon-reload
 TimeClock/
 ├── src/
 │   ├── main.py                    # Application entry point
-│   ├── database.py                # Data models and queries
-│   ├── rfid.py                    # RFID hardware abstraction
-│   ├── wt_report.py              # Report generation engine
-│   ├── export_utils.py           # Export utilities
-│   ├── timeclock.kv              # UI layout definitions
 │   │
 │   ├── services/                 # Business logic layer
 │   │   ├── clock_service.py      # Clock in/out logic
 │   │   ├── state_service.py      # State management
-│   │   └── popup_service.py      # Popup management
+│   │   ├── popup_service.py      # Popup management
+│   │   └── report_service.py     # Report generation engine
 │   │
 │   ├── presentation/             # UI layer
+│   │   ├── timeclock.kv          # UI layout definitions
 │   │   ├── screens/              # Screen controllers
 │   │   ├── popups/               # Popup components
 │   │   └── widgets/              # Custom widgets
 │   │
+│   ├── hardware/                 # Hardware layer
+│   │   ├── rfid.py               # RFID hardware abstraction
+│   │   ├── pcprox.py             # RFID reader driver
+│   │   ├── configure.py          # Hardware configuration
+│   │   └── usbtest.py            # USB testing utilities
+│   │
+│   ├── data/                     # Data layer
+│   │   ├── database.py           # Data models and queries
+│   │   └── greetings/            # Greeting message files
+│   │
 │   └── utils/                    # Utilities
-│       └── errors.py             # Error classes
+│       ├── errors.py             # Error classes
+│       └── export_utils.py       # Export utilities
 │
-├── libraries/                    # Hardware libraries
+├── scripts/                      # Utility scripts
+│   └── migrate_db.py             # Database migration script
 ├── exports/                      # Default export directory
 ├── requirements.txt
 └── README.md

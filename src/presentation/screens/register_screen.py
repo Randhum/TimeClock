@@ -7,7 +7,7 @@ from kivy.properties import StringProperty
 from kivy.app import App
 from peewee import IntegrityError
 
-from src.database import get_admin_count, create_employee
+from ...data.database import get_admin_count, create_employee
 
 logger = logging.getLogger(__name__)
 

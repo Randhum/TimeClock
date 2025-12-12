@@ -1,71 +1,58 @@
 """
-Time picker popup for selecting times.
+Time picker popup for selecting times - Chains hour and minute pickers.
 """
 import datetime
 import logging
-from kivy.uix.popup import Popup
-from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.spinner import Spinner
-from kivy.properties import ObjectProperty
-from kivy.app import App
+from kivy.clock import Clock
 
-from src.presentation.widgets import DebouncedButton
+from .hour_picker_popup import HourPickerPopup
+from .minute_picker_popup import MinutePickerPopup
 
 logger = logging.getLogger(__name__)
 
 
-class TimePickerPopup(Popup):
-    selected_time = ObjectProperty(None, allownone=True)
-
+class TimePickerPopup:
+    """Time picker that chains hour and minute selection"""
+    
     def __init__(self, current_time=None, on_select=None, **kwargs):
-        super().__init__(**kwargs)
         self.on_select_callback = on_select
         now = current_time or datetime.datetime.now().time()
         self.selected_hour = now.hour
         self.selected_minute = (now.minute // 5) * 5  # round to 5 minutes
-
-        self.title = "Zeit Auswählen"
-        self.size_hint = (0.6, 0.6)
-        self.auto_dismiss = False
-
-        layout = BoxLayout(orientation='vertical', spacing=10, padding=10)
-
-        # Hour/Minute selectors
-        selectors = BoxLayout(orientation='horizontal', spacing=10, size_hint_y=None, height='60dp')
-        self.hour_spinner = Spinner(
-            text=f"{self.selected_hour:02d}",
-            values=[f"{h:02d}" for h in range(24)],
-            size_hint_x=0.5
-        )
-        self.minute_spinner = Spinner(
-            text=f"{self.selected_minute:02d}",
-            values=[f"{m:02d}" for m in range(0, 60, 5)],
-            size_hint_x=0.5
-        )
-        selectors.add_widget(self.hour_spinner)
-        selectors.add_widget(self.minute_spinner)
-        layout.add_widget(selectors)
-
-        # Buttons
-        btn_row = BoxLayout(orientation='horizontal', spacing=10, size_hint_y=None, height='50dp')
-        ok_btn = DebouncedButton(text="OK", background_color=(0, 0.7, 0, 1))
-        cancel_btn = DebouncedButton(text="Abbrechen", background_color=(0.7, 0.2, 0.2, 1))
-        ok_btn.bind(on_release=self._confirm_time)
-        cancel_btn.bind(on_release=self.dismiss)
-        btn_row.add_widget(ok_btn)
-        btn_row.add_widget(cancel_btn)
-        layout.add_widget(btn_row)
-
-        self.content = layout
-
-    def _confirm_time(self, *_):
+    
+    def _open_hour_picker(self):
+        """Open hour picker first"""
+        HourPickerPopup(
+            current_hour=self.selected_hour,
+            on_select=self._on_hour_selected
+        ).open()
+    
+    def _on_hour_selected(self, hour):
+        """Called when hour is selected, open minute picker"""
+        self.selected_hour = hour
+        # Small delay to ensure hour picker is dismissed before opening minute picker
+        Clock.schedule_once(lambda dt: MinutePickerPopup(
+            current_minute=self.selected_minute,
+            on_select=self._on_minute_selected
+        ).open(), 0.05)
+    
+    def _on_minute_selected(self, minute):
+        """Called when minute is selected, combine and call callback"""
+        self.selected_minute = minute
+        # Schedule callback after popup dismisses to avoid UI blocking
+        Clock.schedule_once(lambda dt: self._execute_callback(), 0.05)
+    
+    def _execute_callback(self):
+        """Execute the callback after popup has dismissed"""
         try:
-            hour = int(self.hour_spinner.text)
-            minute = int(self.minute_spinner.text)
-            t = datetime.time(hour=hour, minute=minute)
+            t = datetime.time(hour=self.selected_hour, minute=self.selected_minute)
             if self.on_select_callback:
                 self.on_select_callback(t)
-            self.dismiss()
-        except ValueError:
+        except ValueError as e:
+            logger.error(f"[TIME_PICKER] Error creating time: {e}")
+            from kivy.app import App
             App.get_running_app().show_popup("Fehler", "Ungültige Zeit")
-
+    
+    def open(self):
+        """Open the time picker (starts with hour picker)"""
+        self._open_hour_picker()

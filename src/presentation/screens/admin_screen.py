@@ -11,8 +11,8 @@ import logging
 from kivy.uix.screenmanager import Screen
 from kivy.app import App
 
-from src.database import db, get_time_entries_for_export
-from src.export_utils import get_export_directory, write_file
+from ...data.database import db, get_time_entries_for_export
+from ...utils.export_utils import get_export_directory, write_file
 
 logger = logging.getLogger(__name__)
 

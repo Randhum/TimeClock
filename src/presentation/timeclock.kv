@@ -1,5 +1,7 @@
 #:import DebouncedButton src.presentation.widgets.DebouncedButton
 #:import FilteredTextInput src.presentation.widgets.FilteredTextInput
+#:import ScreensaverScreen src.presentation.screens.screensaver_screen.ScreensaverScreen
+#:import MatrixRain src.presentation.screens.screensaver_screen.MatrixRain
 
 WindowManager:
     TimeClockScreen:
@@ -48,6 +50,10 @@ WindowManager:
             font_size: '30sp'
             color: 1, 1, 1, 1
             halign: 'center'
+            valign: 'middle'
+            text_size: self.width, None
+            size_hint_y: None
+            height: self.texture_size[1] if self.texture_size else '50dp'
 
 # TimeClock Main Screen
 <TimeClockScreen>:

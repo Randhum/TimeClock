@@ -6,7 +6,7 @@ import datetime
 import logging
 from collections import deque
 from typing import List, Dict, Optional
-from .database import Employee, TimeEntry, ensure_db_connection
+from ..data.database import Employee, TimeEntry, ensure_db_connection
 
 logger = logging.getLogger(__name__)
 

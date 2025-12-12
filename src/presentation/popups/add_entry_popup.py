@@ -8,9 +8,9 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.scrollview import ScrollView
 from kivy.app import App
 
-from src.presentation.widgets import DebouncedButton
-from src.presentation.popups.limited_date_picker_popup import LimitedDatePickerPopup
-from src.presentation.popups.time_picker_popup import TimePickerPopup
+from ..widgets import DebouncedButton
+from .limited_date_picker_popup import LimitedDatePickerPopup
+from .time_picker_popup import TimePickerPopup
 
 logger = logging.getLogger(__name__)
 
