@@ -5,7 +5,7 @@ Generates detailed working time reports per employee for HR purposes.
 import datetime
 import logging
 from collections import deque
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional
 from ..data.database import Employee, TimeEntry, ensure_db_connection
 
 logger = logging.getLogger(__name__)
@@ -17,13 +17,6 @@ def _format_hms(total_seconds: int) -> str:
     minutes = (total_seconds % 3600) // 60
     seconds = total_seconds % 60
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-
-
-def _format_hm(total_seconds: int) -> str:
-    """Format seconds to HH:MM (L-GAV format)."""
-    hours = total_seconds // 3600
-    minutes = (total_seconds % 3600) // 60
-    return f"{hours:02d}:{minutes:02d}"
 
 
 class WorkingTimeReport:

@@ -14,7 +14,6 @@ from kivy.app import App
 from ...data.database import db, get_time_entries_for_export
 from ...utils.export_utils import get_export_directory, write_file
 from ...services.report_service import generate_all_employees_lgav_excel
-from kivy.clock import Clock
 
 logger = logging.getLogger(__name__)
 
