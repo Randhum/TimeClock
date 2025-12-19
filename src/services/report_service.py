@@ -798,3 +798,174 @@ def generate_wt_report(employee: Employee, start_date: Optional[datetime.date] =
     report = WorkingTimeReport(employee, start_date, end_date)
     report.generate()
     return report
+
+
+def generate_all_employees_lgav_excel(
+    filename: Optional[str] = None,
+    export_root: Optional[str] = None,
+    start_date: Optional[datetime.date] = None,
+    end_date: Optional[datetime.date] = None
+) -> str:
+    """
+    Generate LGAV Excel report for all active employees with one sheet per employee.
+    
+    Args:
+        filename: Optional filename. If not provided, generates one.
+        export_root: Optional directory where the file should be written.
+        start_date: Start date for report (defaults to one year ago)
+        end_date: End date for report (defaults to today)
+    
+    Returns:
+        Path to the generated file.
+    """
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+        from openpyxl.utils import get_column_letter
+    except ImportError as e:
+        raise ImportError(f"Required libraries not installed: {e}. Install with: pip install openpyxl")
+    
+    import os
+    import calendar
+    from ..data.database import get_all_employees
+    
+    ensure_db_connection()
+    
+    # Set default dates: last year from today
+    if end_date is None:
+        end_date = datetime.date.today()
+    if start_date is None:
+        start_date = end_date - datetime.timedelta(days=365)
+    
+    # Get all active employees
+    employees = list(get_all_employees(include_inactive=False))
+    
+    if not employees:
+        raise ValueError("No active employees found")
+    
+    # Generate filename if not provided
+    if filename is None:
+        start_str = start_date.strftime('%Y%m%d')
+        end_str = end_date.strftime('%Y%m%d')
+        root = export_root or os.path.join(os.getcwd(), 'exports')
+        filename = os.path.join(root, f"LGAV_Alle_Mitarbeiter_{start_str}_{end_str}.xlsx")
+    
+    os.makedirs(os.path.dirname(filename) if os.path.dirname(filename) else 'exports', exist_ok=True)
+    
+    # Create workbook
+    wb = openpyxl.Workbook()
+    
+    # Remove default sheet
+    if 'Sheet' in wb.sheetnames:
+        wb.remove(wb['Sheet'])
+    
+    # Month names in German
+    month_names = ['', 'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+                   'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember']
+    
+    # Styles
+    title_font = Font(bold=True, size=14)
+    header_font = Font(bold=True, size=10)
+    normal_font = Font(size=10)
+    center_align = Alignment(horizontal='center', vertical='center')
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    header_fill = PatternFill(start_color='CCCCFF', end_color='CCCCFF', fill_type='solid')
+    
+    # Process each employee
+    for employee in employees:
+        # Create report for this employee
+        report = WorkingTimeReport(employee, start_date, end_date)
+        lgav_data = report._build_lgav_data()
+        
+        # Create worksheet for this employee (sheet name max 31 chars)
+        safe_sheet_name = "".join(c for c in employee.name if c.isalnum() or c in (' ', '-', '_'))[:31]
+        if not safe_sheet_name:
+            safe_sheet_name = f"Employee_{employee.id}"
+        ws = wb.create_sheet(title=safe_sheet_name)
+        
+        # ===== ROW 1: Employee Name =====
+        ws['A1'] = f"Arbeitszeitnachweis: {employee.name}"
+        ws['A1'].font = title_font
+        ws.merge_cells('A1:AF1')
+        
+        # ===== ROW 2: Date Range =====
+        ws['A2'] = f"Zeitraum: {start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')}"
+        ws['A2'].font = normal_font
+        ws.merge_cells('A2:AF2')
+        
+        row = 4  # Start data from row 4
+        
+        # Process each month
+        for (year, month), month_data in sorted(lgav_data['months'].items()):
+            days_in_month = calendar.monthrange(year, month)[1]
+            
+            # Month header row
+            ws[f'A{row}'] = f"{month_names[month]} {year}"
+            ws[f'A{row}'].font = header_font
+            ws[f'A{row}'].fill = header_fill
+            ws.merge_cells(f'A{row}:AF{row}')
+            row += 1
+            
+            # Day numbers row
+            for day in range(1, days_in_month + 1):
+                col = get_column_letter(day)
+                cell = ws[f'{col}{row}']
+                cell.value = day
+                cell.font = header_font
+                cell.alignment = center_align
+                cell.border = thin_border
+                cell.fill = header_fill
+            
+            # Total column header
+            total_col = get_column_letter(days_in_month + 1)
+            ws[f'{total_col}{row}'] = "Total"
+            ws[f'{total_col}{row}'].font = header_font
+            ws[f'{total_col}{row}'].alignment = center_align
+            ws[f'{total_col}{row}'].border = thin_border
+            ws[f'{total_col}{row}'].fill = header_fill
+            row += 1
+            
+            # Hours row
+            month_total_seconds = 0
+            for day in range(1, days_in_month + 1):
+                col = get_column_letter(day)
+                cell = ws[f'{col}{row}']
+                
+                if day in month_data['days']:
+                    total_seconds = month_data['days'][day]['total_seconds']
+                    if total_seconds > 0:
+                        # Format as H:MM
+                        hours = total_seconds // 3600
+                        minutes = (total_seconds % 3600) // 60
+                        cell.value = f"{hours}:{minutes:02d}"
+                        month_total_seconds += total_seconds
+                    else:
+                        cell.value = ""
+                else:
+                    cell.value = ""
+                
+                cell.alignment = center_align
+                cell.border = thin_border
+            
+            # Month total
+            total_hours = month_total_seconds // 3600
+            total_minutes = (month_total_seconds % 3600) // 60
+            ws[f'{total_col}{row}'] = f"{total_hours}:{total_minutes:02d}"
+            ws[f'{total_col}{row}'].font = header_font
+            ws[f'{total_col}{row}'].alignment = center_align
+            ws[f'{total_col}{row}'].border = thin_border
+            
+            row += 2  # Empty row between months
+        
+        # Column widths
+        for col in range(1, 33):
+            ws.column_dimensions[get_column_letter(col)].width = 6
+    
+    wb.save(filename)
+    logger.info(f"LGAV Excel report for all employees exported to {filename}")
+    return filename

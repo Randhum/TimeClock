@@ -119,6 +119,10 @@ WindowManager:
                     background_color: 0, 0.7, 1, 1  # Blue
                     on_release: app.root.current = "wtreport_select_employee"
                 DebouncedButton:
+                    text: "LGAV Report (Alle Mitarbeiter)"
+                    background_color: 0.2, 0.7, 0.2, 1  # Green
+                    on_release: root.export_all_employees_lgav()
+                DebouncedButton:
                     text: "L-GAV Import"
                     background_color: 0.7, 0.5, 0.2, 1  # Orange
                     on_release: root.import_lgav()

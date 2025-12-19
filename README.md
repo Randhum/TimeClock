@@ -123,15 +123,25 @@ TimeClock supports exporting working hours reports in multiple formats, organize
 - **Excel Export** - Structured Excel file with hours per day per month
 - **CSV Export** - Semicolon-delimited CSV for import into other systems
 - **PDF Export** - Formatted PDF report for printing and archiving (landscape A4)
+- **All Employees LGAV Report** - Single Excel file with one sheet per employee for the last year
 
 #### Usage
 
+**Individual Employee Reports:**
 1. Navigate to **Admin → Work Time Reports**
 2. Select an employee and date range
 3. Choose export format:
    - **Excel** - For spreadsheet applications
    - **CSV** - For import into payroll/accounting systems
    - **PDF** - For printing and documentation
+
+**All Employees LGAV Report:**
+1. Navigate to **Admin → LGAV Report (Alle Mitarbeiter)**
+2. The system automatically generates an Excel file with:
+   - One sheet per active employee
+   - Last year's data (365 days from today)
+   - Same format as individual reports
+3. File is saved to the export directory with format: `LGAV_Alle_Mitarbeiter_YYYYMMDD_YYYYMMDD.xlsx`
 
 #### Format Details
 
