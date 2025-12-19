@@ -8,7 +8,8 @@ import os
 import sys
 
 from peewee import (
-    Model, CharField, BooleanField, DateTimeField, ForeignKeyField, IntegrityError
+    Model, CharField, BooleanField, DateTimeField, DateField, IntegerField, TextField,
+    ForeignKeyField, IntegrityError
 )
 
 logger = logging.getLogger(__name__)
@@ -106,6 +107,28 @@ class TimeEntry(BaseModel):
         ).order_by(TimeEntry.timestamp.desc()).first()
 
 
+class LgavDayEntry(BaseModel):
+    """L-GAV day type entry for tracking holidays, vacation, sick days, etc."""
+    employee = ForeignKeyField(Employee, backref='lgav_entries', on_delete='CASCADE', null=False)
+    date = DateField(null=False)
+    upper_code = CharField(max_length=10, null=True)  # A, X, FT, F, K, U, Mu, Mi, D
+    lower_code = CharField(max_length=10, null=True)  # HH:MM format or code
+    total_seconds = IntegerField(default=0)
+    notes = TextField(null=True)
+    created_at = DateTimeField(default=datetime.datetime.now, null=False)
+    updated_at = DateTimeField(default=datetime.datetime.now, null=False)
+    active = BooleanField(default=True, null=False)
+
+    class Meta:
+        indexes = (
+            (('employee', 'date'), True),  # Unique composite index
+            (('date',), False),  # Index for date range queries
+        )
+
+    def __str__(self):
+        return f"{self.employee.name} - {self.date} [{self.upper_code}/{self.lower_code}]"
+
+
 def is_encrypted() -> bool:
     """Check if the database is using SQLCipher encryption."""
     try:
@@ -139,6 +162,16 @@ def _ensure_timeentry_active_column():
         logger.debug(f"Could not ensure active column: {exc}")
 
 
+def _ensure_lgav_day_entry_table():
+    """Ensure LgavDayEntry table exists"""
+    ensure_db_connection()
+    try:
+        db.create_tables([LgavDayEntry], safe=True)
+        logger.info("LgavDayEntry table ensured")
+    except Exception as exc:
+        logger.debug(f"Could not ensure LgavDayEntry table: {exc}")
+
+
 def soft_delete_time_entries(entry_ids):
     """Soft-delete specific time entries (set active=False)"""
     if not entry_ids:
@@ -160,6 +193,7 @@ def initialize_db():
         
         db.create_tables([Employee, TimeEntry], safe=True)
         _ensure_timeentry_active_column()
+        _ensure_lgav_day_entry_table()
         db.commit()
         logger.info("Database initialized successfully")
     except Exception as e:
@@ -272,6 +306,162 @@ def get_time_entries_for_export():
         Employee.active == True,
         TimeEntry.active == True
     ).order_by(TimeEntry.timestamp.desc())
+
+
+# --- L-GAV Day Entry Functions ---
+
+def create_lgav_day_entry(employee, date, upper_code=None, lower_code=None, 
+                          total_seconds=0, notes=None):
+    """
+    Create or update an L-GAV day entry.
+    
+    Args:
+        employee: Employee object
+        date: datetime.date object
+        upper_code: L-GAV upper field code (A, X, FT, F, K, U, Mu, Mi, D)
+        lower_code: L-GAV lower field (HH:MM format or code)
+        total_seconds: Total seconds worked (for work days)
+        notes: Optional notes
+    
+    Returns:
+        LgavDayEntry object
+    """
+    ensure_db_connection()
+    
+    if not employee.active:
+        raise ValueError("Cannot create L-GAV entry for inactive employee")
+    
+    try:
+        with db.atomic():
+            # Try to get existing entry
+            try:
+                entry = LgavDayEntry.get(
+                    LgavDayEntry.employee == employee,
+                    LgavDayEntry.date == date,
+                    LgavDayEntry.active == True
+                )
+                # Update existing entry
+                entry.upper_code = upper_code
+                entry.lower_code = lower_code
+                entry.total_seconds = total_seconds
+                entry.notes = notes
+                entry.updated_at = datetime.datetime.now()
+                entry.save()
+                logger.info(f"Updated L-GAV entry for {employee.name} on {date}")
+                return entry
+            except LgavDayEntry.DoesNotExist:
+                # Create new entry
+                entry = LgavDayEntry.create(
+                    employee=employee,
+                    date=date,
+                    upper_code=upper_code,
+                    lower_code=lower_code,
+                    total_seconds=total_seconds,
+                    notes=notes
+                )
+                logger.info(f"Created L-GAV entry for {employee.name} on {date}")
+                return entry
+    except IntegrityError as e:
+        logger.error(f"Failed to create L-GAV entry (integrity error): {e}")
+        raise
+    except Exception as e:
+        logger.error(f"Failed to create L-GAV entry: {e}")
+        raise
+
+
+def get_lgav_day_entry(employee, date):
+    """
+    Get L-GAV entry for a specific employee and date.
+    
+    Args:
+        employee: Employee object
+        date: datetime.date object
+    
+    Returns:
+        LgavDayEntry object or None if not found
+    """
+    ensure_db_connection()
+    try:
+        return LgavDayEntry.get(
+            LgavDayEntry.employee == employee,
+            LgavDayEntry.date == date,
+            LgavDayEntry.active == True
+        )
+    except LgavDayEntry.DoesNotExist:
+        return None
+
+
+def get_lgav_day_entries(employee, start_date, end_date):
+    """
+    Get all L-GAV entries for an employee in a date range.
+    
+    Args:
+        employee: Employee object
+        start_date: datetime.date object
+        end_date: datetime.date object
+    
+    Returns:
+        List of LgavDayEntry objects
+    """
+    ensure_db_connection()
+    return list(LgavDayEntry.select().where(
+        LgavDayEntry.employee == employee,
+        LgavDayEntry.date >= start_date,
+        LgavDayEntry.date <= end_date,
+        LgavDayEntry.active == True
+    ).order_by(LgavDayEntry.date.asc()))
+
+
+def update_lgav_day_entry(entry_id, **kwargs):
+    """
+    Update an existing L-GAV day entry.
+    
+    Args:
+        entry_id: ID of the entry to update
+        **kwargs: Fields to update (upper_code, lower_code, total_seconds, notes)
+    
+    Returns:
+        Updated LgavDayEntry object
+    """
+    ensure_db_connection()
+    try:
+        entry = LgavDayEntry.get(LgavDayEntry.id == entry_id, LgavDayEntry.active == True)
+        
+        # Update allowed fields
+        allowed_fields = ['upper_code', 'lower_code', 'total_seconds', 'notes']
+        for field, value in kwargs.items():
+            if field in allowed_fields:
+                setattr(entry, field, value)
+        
+        entry.updated_at = datetime.datetime.now()
+        entry.save()
+        logger.info(f"Updated L-GAV entry {entry_id}")
+        return entry
+    except LgavDayEntry.DoesNotExist:
+        raise ValueError(f"L-GAV entry {entry_id} not found")
+    except Exception as e:
+        logger.error(f"Failed to update L-GAV entry: {e}")
+        raise
+
+
+def delete_lgav_day_entry(entry_id):
+    """
+    Soft delete an L-GAV day entry.
+    
+    Args:
+        entry_id: ID of the entry to delete
+    
+    Returns:
+        Number of rows affected
+    """
+    ensure_db_connection()
+    try:
+        return LgavDayEntry.update(active=False).where(
+            LgavDayEntry.id == entry_id
+        ).execute()
+    except Exception as e:
+        logger.error(f"Failed to delete L-GAV entry: {e}")
+        raise
 
 
 # --- Migration Utility ---

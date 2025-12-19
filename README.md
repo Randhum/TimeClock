@@ -27,6 +27,7 @@ On first launch, you'll be prompted to register an **administrator**. This step 
 - 📱 **Touch-Optimized Interface** - Designed for touchscreen kiosks
 - 💾 **Local SQLite Database** - No cloud dependency, all data stored locally
 - 📤 **CSV Export** - Export raw entries or formatted reports for payroll
+- 🇨🇭 **L-GAV Compliance** - Export reports in L-GAV Art. 15 & 21 format (Excel, CSV, PDF)
 - 🔒 **Role-Based Access** - Admin and Employee roles with appropriate permissions
 - 🤖 **Screensaver** - Matrix-style screensaver activates after 60s idle
 - 💬 **Greeter Messages** - Customizable welcome/goodbye messages
@@ -54,6 +55,9 @@ On first launch, you'll be prompted to register an **administrator**. This step 
 | Kivy | ≥2.0 | GUI framework |
 | Peewee | ≥3.15 | ORM for SQLite |
 | hidapi | ≥0.12 | RFID communication |
+| pandas | ≥1.3 | Data processing for L-GAV exports |
+| openpyxl | ≥3.0 | Excel file generation |
+| reportlab | ≥3.6 | PDF generation |
 
 ---
 
@@ -111,6 +115,58 @@ python -m src.main
 ```
 
 **Auto-Detection**: The system scans `/media`, `/run/media`, and `/mnt` for mounted USB drives and uses them automatically.
+
+### Working Hours Export
+
+TimeClock supports exporting working hours reports in multiple formats, organized by employee and month.
+
+#### Features
+
+- **Excel Export** - Structured Excel file with hours per day per month
+- **CSV Export** - Semicolon-delimited CSV for import into other systems
+- **PDF Export** - Formatted PDF report for printing and archiving (landscape A4)
+
+#### Usage
+
+1. Navigate to **Admin → Work Time Reports**
+2. Select an employee and date range
+3. Choose export format:
+   - **Excel** - For spreadsheet applications
+   - **CSV** - For import into payroll/accounting systems
+   - **PDF** - For printing and documentation
+
+#### Format Details
+
+The export shows logged working hours per day, organized by month:
+
+```
+Arbeitszeitnachweis: Max Mustermann
+Zeitraum: 01.12.2025 - 31.12.2025
+
+Dezember 2025
+1  | 2  | 3  | 4  | ... | 31 | Total
+8:30|7:45|8:15|   | ... |8:00| 168:30
+
+Januar 2026
+1  | 2  | 3  | ... | 31 | Total
+...
+```
+
+**Format:**
+- **Header**: Employee name and date range
+- **Month Section**: Month name and year
+- **Day Row**: Day numbers (1-31)
+- **Hours Row**: Working hours in H:MM format per day
+- **Total**: Monthly total hours
+
+#### Requirements
+
+Export requires additional dependencies:
+```bash
+pip install openpyxl reportlab
+```
+
+These are included in `requirements.txt` and installed automatically.
 
 ### RFID Provider
 

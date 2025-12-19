@@ -119,6 +119,10 @@ WindowManager:
                     background_color: 0, 0.7, 1, 1  # Blue
                     on_release: app.root.current = "wtreport_select_employee"
                 DebouncedButton:
+                    text: "L-GAV Import"
+                    background_color: 0.7, 0.5, 0.2, 1  # Orange
+                    on_release: root.import_lgav()
+                DebouncedButton:
                     text: "CSV Export"
                     on_release: root.export_csv()
                 DebouncedButton:
@@ -333,6 +337,38 @@ WindowManager:
                         font_size: '20sp'
                         background_color: 0, 0.5, 0.9, 1
                         on_release: root.export_report()
+                
+                Label:
+                    text: "L-GAV Export (Art. 15 & 21)"
+                    font_size: '18sp'
+                    size_hint_y: None
+                    height: '40dp'
+                    color: 0.8, 0.8, 0, 1
+                    bold: True
+                
+                GridLayout:
+                    cols: 3
+                    spacing: 10
+                    size_hint_y: None
+                    height: '80dp'
+                    
+                    DebouncedButton:
+                        text: "L-GAV Excel"
+                        font_size: '18sp'
+                        background_color: 0.2, 0.7, 0.2, 1
+                        on_release: root.export_lgav_excel()
+                    
+                    DebouncedButton:
+                        text: "L-GAV CSV"
+                        font_size: '18sp'
+                        background_color: 0.2, 0.6, 0.8, 1
+                        on_release: root.export_lgav_csv()
+                    
+                    DebouncedButton:
+                        text: "L-GAV PDF"
+                        font_size: '18sp'
+                        background_color: 0.8, 0.2, 0.2, 1
+                        on_release: root.export_lgav_pdf()
         
         # Fixed Footer
         DebouncedButton:
@@ -381,6 +417,38 @@ WindowManager:
                 text_size: self.width - 20, None
                 size_hint_y: None
                 height: max(self.texture_size[1], 100) if self.texture_size else 100
+        
+        Label:
+            text: "L-GAV Export (Art. 15 & 21)"
+            font_size: '18sp'
+            size_hint_y: None
+            height: '40dp'
+            color: 0.8, 0.8, 0, 1
+            bold: True
+        
+        GridLayout:
+            cols: 3
+            spacing: 10
+            size_hint_y: None
+            height: '80dp'
+            
+            DebouncedButton:
+                text: "L-GAV Excel"
+                font_size: '18sp'
+                background_color: 0.2, 0.7, 0.2, 1
+                on_release: root.export_lgav_excel()
+            
+            DebouncedButton:
+                text: "L-GAV CSV"
+                font_size: '18sp'
+                background_color: 0.2, 0.6, 0.8, 1
+                on_release: root.export_lgav_csv()
+            
+            DebouncedButton:
+                text: "L-GAV PDF"
+                font_size: '18sp'
+                background_color: 0.8, 0.2, 0.2, 1
+                on_release: root.export_lgav_pdf()
         
         GridLayout:
             cols: 2

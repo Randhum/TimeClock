@@ -5,7 +5,7 @@ Generates detailed working time reports per employee for HR purposes.
 import datetime
 import logging
 from collections import deque
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from ..data.database import Employee, TimeEntry, ensure_db_connection
 
 logger = logging.getLogger(__name__)
@@ -17,6 +17,13 @@ def _format_hms(total_seconds: int) -> str:
     minutes = (total_seconds % 3600) // 60
     seconds = total_seconds % 60
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
+def _format_hm(total_seconds: int) -> str:
+    """Format seconds to HH:MM (L-GAV format)."""
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    return f"{hours:02d}:{minutes:02d}"
 
 
 class WorkingTimeReport:
@@ -343,6 +350,436 @@ class WorkingTimeReport:
         lines.append("=" * 37)
         
         return "\n".join(lines)
+    
+    def _build_lgav_data(self) -> Dict:
+        """
+        Build simple monthly hours data structure.
+        
+        Returns:
+            Dictionary with hours worked per day, organized by month.
+        """
+        report = self.generate()
+        start = report['start_date']
+        end = report['end_date']
+        
+        # Create a map of date -> total seconds worked that day (from clock entries)
+        daily_totals = {}
+        for session in report['daily_sessions']:
+            date = session['date']
+            if date not in daily_totals:
+                daily_totals[date] = 0
+            daily_totals[date] += session['total_seconds']
+        
+        # Organize by months
+        months = {}
+        current_date = start
+        
+        while current_date <= end:
+            year_month = (current_date.year, current_date.month)
+            if year_month not in months:
+                months[year_month] = {
+                    'year': current_date.year,
+                    'month': current_date.month,
+                    'days': {},
+                    'total_seconds': 0,
+                }
+            
+            day_of_month = current_date.day
+            month_data = months[year_month]
+            
+            # Get hours worked from clock entries
+            total_seconds = daily_totals.get(current_date, 0)
+            
+            month_data['days'][day_of_month] = {
+                'date': current_date,
+                'total_seconds': total_seconds
+            }
+            month_data['total_seconds'] += total_seconds
+            
+            current_date += datetime.timedelta(days=1)
+        
+        return {
+            'employee': report['employee'],
+            'start_date': start,
+            'end_date': end,
+            'months': months
+        }
+    
+    def to_lgav_excel(
+        self,
+        filename: Optional[str] = None,
+        export_root: Optional[str] = None
+    ) -> str:
+        """
+        Export working hours to Excel - simple format with hours per day per month.
+        
+        Args:
+            filename: Optional filename. If not provided, generates one.
+            export_root: Optional directory where the file should be written.
+        
+        Returns:
+            Path to the generated file.
+        """
+        try:
+            import openpyxl
+            from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+            from openpyxl.utils import get_column_letter
+        except ImportError as e:
+            raise ImportError(f"Required libraries not installed: {e}. Install with: pip install openpyxl")
+        
+        import os
+        import calendar
+        
+        lgav_data = self._build_lgav_data()
+        report = self.generate()
+        
+        if filename is None:
+            start_str = report['start_date'].strftime('%Y%m%d')
+            end_str = report['end_date'].strftime('%Y%m%d')
+            safe_name = "".join(c for c in report['employee'].name if c.isalnum() or c in (' ', '-', '_')).strip()
+            safe_name = safe_name.replace(' ', '_')
+            root = export_root or os.path.join(os.getcwd(), 'exports')
+            filename = os.path.join(root, f"Arbeitszeit_{safe_name}_{start_str}_{end_str}.xlsx")
+        
+        os.makedirs(os.path.dirname(filename) if os.path.dirname(filename) else 'exports', exist_ok=True)
+        
+        # Create workbook
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Arbeitszeit"
+        
+        # Styles
+        title_font = Font(bold=True, size=14)
+        header_font = Font(bold=True, size=10)
+        normal_font = Font(size=10)
+        center_align = Alignment(horizontal='center', vertical='center')
+        thin_border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+        header_fill = PatternFill(start_color='CCCCFF', end_color='CCCCFF', fill_type='solid')
+        
+        # Month names in German
+        month_names = ['', 'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+                       'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember']
+        
+        # ===== ROW 1: Employee Name =====
+        ws['A1'] = f"Arbeitszeitnachweis: {report['employee'].name}"
+        ws['A1'].font = title_font
+        ws.merge_cells('A1:AF1')
+        
+        # ===== ROW 2: Date Range =====
+        ws['A2'] = f"Zeitraum: {report['start_date'].strftime('%d.%m.%Y')} - {report['end_date'].strftime('%d.%m.%Y')}"
+        ws['A2'].font = normal_font
+        ws.merge_cells('A2:AF2')
+        
+        row = 4  # Start data from row 4
+        
+        # Process each month
+        for (year, month), month_data in sorted(lgav_data['months'].items()):
+            days_in_month = calendar.monthrange(year, month)[1]
+            
+            # Month header row
+            ws[f'A{row}'] = f"{month_names[month]} {year}"
+            ws[f'A{row}'].font = header_font
+            ws[f'A{row}'].fill = header_fill
+            ws.merge_cells(f'A{row}:AF{row}')
+            row += 1
+            
+            # Day numbers row
+            for day in range(1, days_in_month + 1):
+                col = get_column_letter(day)
+                cell = ws[f'{col}{row}']
+                cell.value = day
+                cell.font = header_font
+                cell.alignment = center_align
+                cell.border = thin_border
+                cell.fill = header_fill
+            
+            # Total column header
+            total_col = get_column_letter(days_in_month + 1)
+            ws[f'{total_col}{row}'] = "Total"
+            ws[f'{total_col}{row}'].font = header_font
+            ws[f'{total_col}{row}'].alignment = center_align
+            ws[f'{total_col}{row}'].border = thin_border
+            ws[f'{total_col}{row}'].fill = header_fill
+            row += 1
+            
+            # Hours row
+            month_total_seconds = 0
+            for day in range(1, days_in_month + 1):
+                col = get_column_letter(day)
+                cell = ws[f'{col}{row}']
+                
+                if day in month_data['days']:
+                    total_seconds = month_data['days'][day]['total_seconds']
+                    if total_seconds > 0:
+                        # Format as H:MM
+                        hours = total_seconds // 3600
+                        minutes = (total_seconds % 3600) // 60
+                        cell.value = f"{hours}:{minutes:02d}"
+                        month_total_seconds += total_seconds
+                    else:
+                        cell.value = ""
+                else:
+                    cell.value = ""
+                
+                cell.alignment = center_align
+                cell.border = thin_border
+            
+            # Month total
+            total_hours = month_total_seconds // 3600
+            total_minutes = (month_total_seconds % 3600) // 60
+            ws[f'{total_col}{row}'] = f"{total_hours}:{total_minutes:02d}"
+            ws[f'{total_col}{row}'].font = header_font
+            ws[f'{total_col}{row}'].alignment = center_align
+            ws[f'{total_col}{row}'].border = thin_border
+            
+            row += 2  # Empty row between months
+        
+        # Column widths
+        for col in range(1, 33):
+            ws.column_dimensions[get_column_letter(col)].width = 6
+        
+        wb.save(filename)
+        logger.info(f"Working time Excel report exported to {filename}")
+        return filename
+    
+    def to_lgav_csv(
+        self,
+        filename: Optional[str] = None,
+        export_root: Optional[str] = None
+    ) -> str:
+        """
+        Export working hours to CSV - simple format with hours per day per month.
+        
+        Args:
+            filename: Optional filename. If not provided, generates one.
+            export_root: Optional directory where the file should be written.
+        
+        Returns:
+            Path to the generated file.
+        """
+        import csv
+        import os
+        import calendar
+        
+        lgav_data = self._build_lgav_data()
+        report = self.generate()
+        
+        # Month names in German
+        month_names = ['', 'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+                       'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember']
+        
+        if filename is None:
+            start_str = report['start_date'].strftime('%Y%m%d')
+            end_str = report['end_date'].strftime('%Y%m%d')
+            safe_name = "".join(c for c in report['employee'].name if c.isalnum() or c in (' ', '-', '_')).strip()
+            safe_name = safe_name.replace(' ', '_')
+            root = export_root or os.path.join(os.getcwd(), 'exports')
+            filename = os.path.join(root, f"Arbeitszeit_{safe_name}_{start_str}_{end_str}.csv")
+        
+        os.makedirs(os.path.dirname(filename) if os.path.dirname(filename) else 'exports', exist_ok=True)
+        
+        with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
+            writer = csv.writer(csvfile, delimiter=';')  # Semicolon as per European CSV standard
+            
+            # Header
+            writer.writerow([f'Arbeitszeitnachweis: {report["employee"].name}'])
+            writer.writerow([f'Zeitraum: {report["start_date"].strftime("%d.%m.%Y")} - {report["end_date"].strftime("%d.%m.%Y")}'])
+            writer.writerow([])
+            
+            # Process each month
+            for (year, month), month_data in sorted(lgav_data['months'].items()):
+                days_in_month = calendar.monthrange(year, month)[1]
+                
+                # Month header
+                writer.writerow([f'{month_names[month]} {year}'])
+                
+                # Day numbers row
+                day_row = [str(day) for day in range(1, days_in_month + 1)] + ['Total']
+                writer.writerow(day_row)
+                
+                # Hours row
+                hours_row = []
+                month_total_seconds = 0
+                for day in range(1, days_in_month + 1):
+                    if day in month_data['days']:
+                        total_seconds = month_data['days'][day]['total_seconds']
+                        if total_seconds > 0:
+                            hours = total_seconds // 3600
+                            minutes = (total_seconds % 3600) // 60
+                            hours_row.append(f"{hours}:{minutes:02d}")
+                            month_total_seconds += total_seconds
+                        else:
+                            hours_row.append('')
+                    else:
+                        hours_row.append('')
+                
+                # Month total
+                total_hours = month_total_seconds // 3600
+                total_minutes = (month_total_seconds % 3600) // 60
+                hours_row.append(f"{total_hours}:{total_minutes:02d}")
+                writer.writerow(hours_row)
+                
+                writer.writerow([])  # Empty row between months
+        
+        logger.info(f"Working time CSV report exported to {filename}")
+        return filename
+    
+    def to_lgav_pdf(
+        self,
+        filename: Optional[str] = None,
+        export_root: Optional[str] = None
+    ) -> str:
+        """
+        Export working hours to PDF - simple format with hours per day per month.
+        
+        Args:
+            filename: Optional filename. If not provided, generates one.
+            export_root: Optional directory where the file should be written.
+        
+        Returns:
+            Path to the generated file.
+        """
+        try:
+            from reportlab.lib.pagesizes import A4, landscape
+            from reportlab.lib import colors
+            from reportlab.lib.units import cm, mm
+            from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib.enums import TA_CENTER, TA_LEFT
+        except ImportError as e:
+            raise ImportError(f"Required libraries not installed: {e}. Install with: pip install reportlab")
+        
+        import os
+        import calendar
+        
+        lgav_data = self._build_lgav_data()
+        report = self.generate()
+        
+        # Month names in German
+        month_names = ['', 'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+                       'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember']
+        
+        if filename is None:
+            start_str = report['start_date'].strftime('%Y%m%d')
+            end_str = report['end_date'].strftime('%Y%m%d')
+            safe_name = "".join(c for c in report['employee'].name if c.isalnum() or c in (' ', '-', '_')).strip()
+            safe_name = safe_name.replace(' ', '_')
+            root = export_root or os.path.join(os.getcwd(), 'exports')
+            filename = os.path.join(root, f"Arbeitszeit_{safe_name}_{start_str}_{end_str}.pdf")
+        
+        os.makedirs(os.path.dirname(filename) if os.path.dirname(filename) else 'exports', exist_ok=True)
+        
+        # Create PDF in landscape for wide table
+        doc = SimpleDocTemplate(filename, pagesize=landscape(A4), leftMargin=15*mm, rightMargin=15*mm)
+        story = []
+        styles = getSampleStyleSheet()
+        
+        # Title
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=16,
+            textColor=colors.HexColor('#000000'),
+            alignment=TA_CENTER,
+            spaceAfter=12
+        )
+        story.append(Paragraph(f"Arbeitszeitnachweis: {report['employee'].name}", title_style))
+        
+        # Date range
+        info_style = ParagraphStyle(
+            'Info',
+            parent=styles['Normal'],
+            fontSize=11,
+            alignment=TA_CENTER
+        )
+        story.append(Paragraph(
+            f"Zeitraum: {report['start_date'].strftime('%d.%m.%Y')} - {report['end_date'].strftime('%d.%m.%Y')}",
+            info_style
+        ))
+        story.append(Spacer(1, 0.5*cm))
+        
+        # Process each month
+        grand_total_seconds = 0
+        
+        for (year, month), month_data in sorted(lgav_data['months'].items()):
+            days_in_month = calendar.monthrange(year, month)[1]
+            
+            # Month header
+            month_style = ParagraphStyle(
+                'MonthHeader',
+                parent=styles['Heading2'],
+                fontSize=12,
+                textColor=colors.HexColor('#333333'),
+                spaceBefore=10,
+                spaceAfter=6
+            )
+            story.append(Paragraph(f"{month_names[month]} {year}", month_style))
+            
+            # Build table: day numbers row + hours row
+            day_row = [str(d) for d in range(1, days_in_month + 1)] + ['Total']
+            hours_row = []
+            month_total_seconds = 0
+            
+            for day in range(1, days_in_month + 1):
+                if day in month_data['days']:
+                    total_seconds = month_data['days'][day]['total_seconds']
+                    if total_seconds > 0:
+                        hours = total_seconds // 3600
+                        minutes = (total_seconds % 3600) // 60
+                        hours_row.append(f"{hours}:{minutes:02d}")
+                        month_total_seconds += total_seconds
+                    else:
+                        hours_row.append('')
+                else:
+                    hours_row.append('')
+            
+            # Month total
+            total_hours = month_total_seconds // 3600
+            total_minutes = (month_total_seconds % 3600) // 60
+            hours_row.append(f"{total_hours}:{total_minutes:02d}")
+            grand_total_seconds += month_total_seconds
+            
+            # Create table
+            table_data = [day_row, hours_row]
+            col_width = (landscape(A4)[0] - 30*mm) / (days_in_month + 1)
+            table = Table(table_data, colWidths=[col_width] * (days_in_month + 1))
+            
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#CCCCFF')),
+                ('BACKGROUND', (-1, 1), (-1, 1), colors.HexColor('#E8E8FF')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTNAME', (-1, 1), (-1, 1), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                ('TOPPADDING', (0, 0), (-1, -1), 4),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ]))
+            
+            story.append(table)
+            story.append(Spacer(1, 0.3*cm))
+        
+        # Grand total
+        story.append(Spacer(1, 0.3*cm))
+        grand_hours = grand_total_seconds // 3600
+        grand_minutes = (grand_total_seconds % 3600) // 60
+        total_style = ParagraphStyle(
+            'GrandTotal',
+            parent=styles['Heading2'],
+            fontSize=12,
+            alignment=TA_LEFT
+        )
+        story.append(Paragraph(f"<b>Gesamtstunden:</b> {grand_hours}:{grand_minutes:02d}", total_style))
+        
+        doc.build(story)
+        logger.info(f"Working time PDF report exported to {filename}")
+        return filename
 
 
 def generate_wt_report(employee: Employee, start_date: Optional[datetime.date] = None,

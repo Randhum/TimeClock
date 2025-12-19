@@ -2,3 +2,6 @@ kivy
 hidapi
 peewee
 sqlcipher3-binary
+pandas
+openpyxl
+reportlab
