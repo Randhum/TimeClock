@@ -13,6 +13,7 @@ from kivy.app import App
 
 from ...data.database import db, get_time_entries_for_export
 from ...utils.export_utils import get_export_directory, write_file
+from ...services.report_service import generate_all_employees_lgav_excel
 
 logger = logging.getLogger(__name__)
 
@@ -95,4 +96,18 @@ class AdminScreen(Screen):
                     os.remove(temp_path)
                 except Exception as cleanup_error:
                     logger.warning(f"Could not remove temp file {temp_path}: {cleanup_error}")
+    
+    def export_all_employees_lgav(self):
+        """Export LGAV Excel report for all employees (one sheet per employee) for the last year"""
+        try:
+            export_dir = get_export_directory()
+            filename = generate_all_employees_lgav_excel(export_root=export_dir)
+            
+            App.get_running_app().show_popup(
+                "Export Erfolgreich",
+                f"LGAV Report für alle Mitarbeiter exportiert nach:\n{filename}"
+            )
+        except Exception as e:
+            logger.error(f"LGAV export for all employees failed: {e}")
+            App.get_running_app().show_popup("Export Error", f"Export fehlgeschlagen: {str(e)}")
 

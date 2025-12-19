@@ -26,7 +26,7 @@ On first launch, you'll be prompted to register an **administrator**. This step 
 - 📊 **Working Time Reports** - Per-employee reports with daily/weekly/monthly breakdowns
 - 📱 **Touch-Optimized Interface** - Designed for touchscreen kiosks
 - 💾 **Local SQLite Database** - No cloud dependency, all data stored locally
-- 📤 **CSV Export** - Export raw entries or formatted reports for payroll
+- 📤 **Multiple Export Formats** - Export raw entries (CSV) or formatted working hours reports (Excel, CSV, PDF)
 - 🔒 **Role-Based Access** - Admin and Employee roles with appropriate permissions
 - 🤖 **Screensaver** - Matrix-style screensaver activates after 60s idle
 - 💬 **Greeter Messages** - Customizable welcome/goodbye messages
@@ -54,6 +54,8 @@ On first launch, you'll be prompted to register an **administrator**. This step 
 | Kivy | ≥2.0 | GUI framework |
 | Peewee | ≥3.15 | ORM for SQLite |
 | hidapi | ≥0.12 | RFID communication |
+| openpyxl | ≥3.0 | Excel file generation |
+| reportlab | ≥3.6 | PDF generation |
 
 ---
 
@@ -111,6 +113,76 @@ python -m src.main
 ```
 
 **Auto-Detection**: The system scans `/media`, `/run/media`, and `/mnt` for mounted USB drives and uses them automatically.
+
+### Working Hours Export
+
+TimeClock supports exporting working hours reports in multiple formats, organized by employee and month.
+
+#### Features
+
+- **Excel Export** - Structured Excel file with hours per day per month
+- **CSV Export** - Semicolon-delimited CSV for import into other systems
+- **PDF Export** - Formatted PDF report for printing and archiving (landscape A4)
+- **All Employees LGAV Report** - Single Excel file with one sheet per employee for the last year
+
+#### Usage
+
+**Individual Employee Reports:**
+1. Navigate to **Admin → Work Time Reports**
+2. Select an employee and date range
+3. Choose export format:
+   - **Excel** - For spreadsheet applications
+   - **CSV** - For import into payroll/accounting systems
+   - **PDF** - For printing and documentation
+
+**All Employees LGAV Report:**
+1. Navigate to **Admin → LGAV Report (Alle Mitarbeiter)**
+2. The system automatically generates an Excel file with:
+   - One sheet per active employee
+   - Last year's data (365 days from today)
+   - Same format as individual reports
+3. File is saved to the export directory with format: `LGAV_Alle_Mitarbeiter_YYYYMMDD_YYYYMMDD.xlsx`
+
+#### Format Details
+
+The export shows logged working hours per day, organized by month. Hours are calculated from actual clock in/out entries (TimeEntry records) in the database.
+
+**Example Output:**
+
+```
+Arbeitszeitnachweis: Max Mustermann
+Zeitraum: 01.12.2025 - 31.12.2025
+
+Dezember 2025
+1  | 2  | 3  | 4  | ... | 31 | Total
+8:30|7:45|8:15|   | ... |8:00| 168:30
+
+Januar 2026
+1  | 2  | 3  | ... | 31 | Total
+...
+```
+
+**Format Structure:**
+- **Header**: Employee name and date range
+- **Month Section**: Month name and year (e.g., "Dezember 2025")
+- **Day Row**: Day numbers (1-31) across columns
+- **Hours Row**: Working hours in H:MM format per day (calculated from clock entries)
+- **Total Column**: Monthly total hours in H:MM format
+
+**Data Source:**
+- Hours are calculated from actual `TimeEntry` records (clock in/out timestamps)
+- Each day shows the sum of all work sessions for that day
+- Days without clock entries show as empty
+- Multiple clock in/out pairs per day are automatically summed
+
+#### Requirements
+
+Export requires additional dependencies:
+```bash
+pip install openpyxl reportlab
+```
+
+These are included in `requirements.txt` and installed automatically.
 
 ### RFID Provider
 
@@ -311,8 +383,8 @@ sudo systemctl daemon-reload
 
 ## Documentation
 
-- **[USER_GUIDE.md](USER_GUIDE.md)** - Complete guide for end users and administrators
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Technical documentation for developers
+- **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)** - Complete guide for end users and administrators
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Technical documentation for developers
 
 ---
 

@@ -115,3 +115,72 @@ class WTReportSelectDatesScreen(Screen):
             logger.error(f"Error exporting report: {e}")
             App.get_running_app().show_popup("Error", f"Export fehlgeschlagen: {str(e)}")
 
+    def export_lgav_excel(self):
+        """Export report to Excel in L-GAV format directly"""
+        if not self.selected_employee:
+            App.get_running_app().show_popup("Error", "Bitte wählen Sie zuerst einen Mitarbeiter.")
+            return
+        
+        if not self.start_date or not self.end_date:
+            App.get_running_app().show_popup("Error", "Bitte wählen Sie Start- und Enddatum aus.")
+            return
+        
+        try:
+            report = generate_wt_report(self.selected_employee, self.start_date, self.end_date)
+            export_dir = get_export_directory()
+            filename = report.to_lgav_excel(export_root=export_dir)
+            
+            app = App.get_running_app()
+            app.show_popup("Export Erfolgreich", f"L-GAV Excel Report exportiert nach:\n{filename}")
+            Clock.schedule_once(lambda dt: setattr(app.root, 'current', 'admin'), 2.5)
+            
+        except Exception as e:
+            logger.error(f"Error exporting L-GAV Excel report: {e}")
+            App.get_running_app().show_popup("Error", f"Export fehlgeschlagen: {str(e)}")
+    
+    def export_lgav_csv(self):
+        """Export report to CSV in L-GAV format directly"""
+        if not self.selected_employee:
+            App.get_running_app().show_popup("Error", "Bitte wählen Sie zuerst einen Mitarbeiter.")
+            return
+        
+        if not self.start_date or not self.end_date:
+            App.get_running_app().show_popup("Error", "Bitte wählen Sie Start- und Enddatum aus.")
+            return
+        
+        try:
+            report = generate_wt_report(self.selected_employee, self.start_date, self.end_date)
+            export_dir = get_export_directory()
+            filename = report.to_lgav_csv(export_root=export_dir)
+            
+            app = App.get_running_app()
+            app.show_popup("Export Erfolgreich", f"L-GAV CSV Report exportiert nach:\n{filename}")
+            Clock.schedule_once(lambda dt: setattr(app.root, 'current', 'admin'), 2.5)
+            
+        except Exception as e:
+            logger.error(f"Error exporting L-GAV CSV report: {e}")
+            App.get_running_app().show_popup("Error", f"Export fehlgeschlagen: {str(e)}")
+    
+    def export_lgav_pdf(self):
+        """Export report to PDF in L-GAV format directly"""
+        if not self.selected_employee:
+            App.get_running_app().show_popup("Error", "Bitte wählen Sie zuerst einen Mitarbeiter.")
+            return
+        
+        if not self.start_date or not self.end_date:
+            App.get_running_app().show_popup("Error", "Bitte wählen Sie Start- und Enddatum aus.")
+            return
+        
+        try:
+            report = generate_wt_report(self.selected_employee, self.start_date, self.end_date)
+            export_dir = get_export_directory()
+            filename = report.to_lgav_pdf(export_root=export_dir)
+            
+            app = App.get_running_app()
+            app.show_popup("Export Erfolgreich", f"L-GAV PDF Report exportiert nach:\n{filename}")
+            Clock.schedule_once(lambda dt: setattr(app.root, 'current', 'admin'), 2.5)
+            
+        except Exception as e:
+            logger.error(f"Error exporting L-GAV PDF report: {e}")
+            App.get_running_app().show_popup("Error", f"Export fehlgeschlagen: {str(e)}")
+

@@ -126,21 +126,44 @@ Per verificare a quale dipendente appartiene un badge:
    - Durata per sessione
    - Totali giornalieri
    - Riepilogo periodo (ore totali, media giornaliera)
-6. (Opzionale) Clicca **Esporta in CSV** per salvare per la busta paga
+6. Opzioni di esportazione:
+   - **Esporta in Excel** - Foglio di calcolo strutturato con ore per giorno per mese
+   - **Esporta in CSV** - Formato delimitato da punto e virgola per sistemi di busta paga
+   - **Esporta in PDF** - Report formattato per la stampa
 
 **Caratteristiche del Report:**
 - Abbina automaticamente gli eventi di ingresso e uscita
-- Calcola le ore totali lavorate
+- Calcola le ore totali lavorate dalle timbrature effettive
 - Mostra le medie giornaliere
 - Segnala sessioni aperte (se il dipendente ha dimenticato di timbrare l'uscita)
+- I formati di esportazione mostrano le ore per giorno organizzate per mese
+
+**Formato di Esportazione:**
+I file esportati mostrano le ore di lavoro per giorno in un formato semplice e chiaro:
+- Nome del dipendente e intervallo di date in alto
+- Ogni mese elencato separatamente
+- Numeri dei giorni (1-31) in alto
+- Ore lavorate per giorno nel formato H:MM sotto
+- Totali mensili nella colonna più a destra
 
 ### Esportazione Dati
 
-**Esporta Timbrature Grezze:**
+**Esporta Timbrature Grezze (CSV):**
 1. Vai su **Admin → Esporta CSV**
 2. Clicca **Esporta Timbrature**
 3. Il file verrà salvato su unità USB (se collegata) o nella directory `exports/`
 4. Un popup di conferma mostra il percorso del file
+5. Contiene le timbrature grezze di ingresso/uscita con timestamp
+
+**Esporta Report Ore di Lavoro:**
+1. Vai su **Admin → Report WT**
+2. Seleziona dipendente e intervallo di date
+3. Genera report
+4. Scegli formato di esportazione:
+   - **Excel** - Per applicazioni di fogli di calcolo (`.xlsx`)
+   - **CSV** - Per import in sistemi di busta paga (`.csv`, delimitato da punto e virgola)
+   - **PDF** - Per stampa e documentazione (`.pdf`)
+5. I file vengono salvati nel formato: `Arbeitszeit_[NomeDipendente]_[DataInizio]_[DataFine].[ext]`
 
 **Esporta Backup Database:**
 1. Vai su **Admin → Esporta Database**

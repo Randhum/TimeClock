@@ -128,21 +128,44 @@ To check which employee a badge belongs to:
    - Duration per session
    - Daily totals
    - Period summary (total hours, average per day)
-6. (Optional) Click **Export to CSV** to save for payroll
+6. Export options:
+   - **Export to Excel** - Structured spreadsheet with hours per day per month
+   - **Export to CSV** - Semicolon-delimited format for payroll systems
+   - **Export to PDF** - Formatted report for printing
 
 **Report Features:**
 - Automatically pairs clock-in and clock-out events
-- Calculates total hours worked
+- Calculates total hours worked from actual stamped entries
 - Shows daily averages
 - Flags open sessions (if employee forgot to clock out)
+- Export formats show hours per day organized by month
+
+**Export Format:**
+The exported files show working hours per day in a simple, clear format:
+- Employee name and date range at the top
+- Each month listed separately
+- Day numbers (1-31) across the top
+- Hours worked per day in H:MM format below
+- Monthly totals in the rightmost column
 
 ### Exporting Data
 
-**Export Raw Time Entries:**
+**Export Raw Time Entries (CSV):**
 1. Navigate to **Admin → Export CSV**
 2. Click **Export Time Entries**
 3. File will be saved to USB drive (if connected) or `exports/` directory
 4. A confirmation popup shows the file path
+5. Contains raw clock in/out entries with timestamps
+
+**Export Working Hours Reports:**
+1. Navigate to **Admin → WT Reports**
+2. Select employee and date range
+3. Generate report
+4. Choose export format:
+   - **Excel** - For spreadsheet applications (`.xlsx`)
+   - **CSV** - For import into payroll systems (`.csv`, semicolon-delimited)
+   - **PDF** - For printing and documentation (`.pdf`)
+5. Files are saved with format: `Arbeitszeit_[EmployeeName]_[StartDate]_[EndDate].[ext]`
 
 **Export Database Backup:**
 1. Navigate to **Admin → Export Database**

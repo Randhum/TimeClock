@@ -126,21 +126,44 @@ Um zu überprüfen, welchem Mitarbeiter ein Badge gehört:
    - Dauer pro Sitzung
    - Tägliche Summen
    - Periodenzusammenfassung (Gesamtstunden, Durchschnitt pro Tag)
-6. (Optional) Klicken Sie auf **Als CSV exportieren**, um für die Lohnabrechnung zu speichern
+6. Export-Optionen:
+   - **Als Excel exportieren** - Strukturierte Tabelle mit Stunden pro Tag pro Monat
+   - **Als CSV exportieren** - Semikolon-getrenntes Format für Lohnsysteme
+   - **Als PDF exportieren** - Formatierter Bericht zum Drucken
 
 **Berichtsfunktionen:**
 - Paart automatisch Ein- und Ausstempelereignisse
-- Berechnet die geleisteten Gesamtstunden
+- Berechnet die geleisteten Gesamtstunden aus tatsächlichen Stempel-Einträgen
 - Zeigt tägliche Durchschnitte
 - Markiert offene Sitzungen (wenn Mitarbeiter vergessen hat auszustempeln)
+- Export-Formate zeigen Stunden pro Tag, organisiert nach Monaten
+
+**Export-Format:**
+Die exportierten Dateien zeigen Arbeitsstunden pro Tag in einem einfachen, klaren Format:
+- Mitarbeitername und Datumsbereich oben
+- Jeder Monat separat aufgelistet
+- Tagesnummern (1-31) oben
+- Geleistete Stunden pro Tag im H:MM-Format darunter
+- Monatssummen in der rechten Spalte
 
 ### Datenexport
 
-**Rohe Zeiteinträge exportieren:**
+**Rohe Zeiteinträge exportieren (CSV):**
 1. Navigieren Sie zu **Admin → CSV Export**
 2. Klicken Sie auf **Zeiteinträge exportieren**
 3. Die Datei wird auf USB-Laufwerk gespeichert (falls angeschlossen) oder im Verzeichnis `exports/`
 4. Ein Bestätigungs-Popup zeigt den Dateipfad
+5. Enthält rohe Ein-/Ausstempel-Einträge mit Zeitstempeln
+
+**Arbeitsstunden-Berichte exportieren:**
+1. Navigieren Sie zu **Admin → WT Reports**
+2. Wählen Sie Mitarbeiter und Datumsbereich
+3. Erstellen Sie Bericht
+4. Wählen Sie Export-Format:
+   - **Excel** - Für Tabellenkalkulationsanwendungen (`.xlsx`)
+   - **CSV** - Für Import in Lohnsysteme (`.csv`, Semikolon-getrennt)
+   - **PDF** - Zum Drucken und Dokumentation (`.pdf`)
+5. Dateien werden gespeichert im Format: `Arbeitszeit_[Mitarbeitername]_[Startdatum]_[Enddatum].[ext]`
 
 **Datenbank-Backup exportieren:**
 1. Navigieren Sie zu **Admin → DB Export**
