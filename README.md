@@ -59,6 +59,14 @@ On first launch, you'll be prompted to register an **administrator**. This step 
 
 ---
 
+## Documentation
+
+- **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)** - Complete guide for end users and administrators [IT](docs/USER_GUIDE_IT.md), [DE](docs/USER_GUIDE_DE.md)
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Technical documentation for developers
+
+---
+
+
 ## Installation
 
 ### 1. Clone Repository
@@ -378,13 +386,6 @@ sudo systemctl disable timeclock.service
 sudo rm /etc/systemd/system/timeclock.service
 sudo systemctl daemon-reload
 ```
-
----
-
-## Documentation
-
-- **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)** - Complete guide for end users and administrators
-- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Technical documentation for developers
 
 ---
 
