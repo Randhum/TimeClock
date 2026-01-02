@@ -57,21 +57,18 @@ class GreeterPopup(Popup):
         now = datetime.datetime.now()
         hour = now.hour
         
-        # Morning shift: 06:00 - 14:00
-        if 6 <= hour < 14:
+        # Morning shift: 04:00 - 11:00
+        if 4 <= hour < 11:
             return 'morning'
-        # Midday shift: 10:00 - 18:00 (overlaps with morning)
-        elif 10 <= hour < 18:
-            # If in overlap (10-14), prefer midday for more variety
-            if 10 <= hour < 14:
-                return 'midday'
+        # Midday shift: 11:00 - 17:00 (overlaps with morning)
+        elif 11 <= hour < 17:
             return 'midday'
-        # Evening shift: 17:00 - end of day
-        elif hour >= 17 or hour < 6:
+        # Evening shift: 17:00 - 04:00
+        elif hour >= 17 or hour < 4:
             return 'evening'
-        # Default to morning for early hours (0-6)
+        # Default to midday for early hours (0-4)
         else:
-            return 'morning'
+            return 'midday'
     
     def _select_language(self, employee):
         """Select language randomly based on entropy from tag_id, time, employee_id, and cpu_temp"""
@@ -103,8 +100,8 @@ class GreeterPopup(Popup):
             
             return selected_language
         except Exception as e:
-            logger.warning(f"Error selecting language, using default 'de': {e}")
-            return 'de'  # Default fallback
+            logger.warning(f"Error selecting language, using default 'rm': {e}")
+            return 'rm'  # Default fallback
     
     def _get_cpu_temperature(self):
         """Read CPU temperature from Raspberry Pi thermal zone"""

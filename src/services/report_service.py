@@ -108,48 +108,14 @@ class WorkingTimeReport:
         return list(query)
     
     def _process_entries(self, entries: List[TimeEntry]):
-        """Process time entries into daily work sessions"""
-        # Group entries by date
-        entries_by_date = {}
-        for entry in entries:
-            date = entry.timestamp.date()
-            if date not in entries_by_date:
-                entries_by_date[date] = []
-            entries_by_date[date].append(entry)
-        
-        # Process each day
-        for date in sorted(entries_by_date.keys()):
-            day_entries = entries_by_date[date]
-            sessions = self._process_day_entries(day_entries)
-            
-            for session in sessions:
-                # Calculate hours and minutes from total_seconds
-                total_seconds = session.get('total_seconds', session['total_minutes'] * 60)
-                hours = total_seconds / 3600.0
-                minutes = total_seconds / 60.0
-                
-                self.daily_sessions.append({
-                    'date': date,
-                    'clock_in': session['clock_in'],
-                    'clock_out': session['clock_out'],
-                    'hours': hours,
-                    'minutes': minutes,
-                    'total_minutes': session['total_minutes'],
-                    'total_seconds': session.get('total_seconds', session['total_minutes'] * 60),
-                    'formatted_time': session['formatted_time']
-                })
-    
-    def _process_day_entries(self, entries: List[TimeEntry]) -> List[Dict]:
         """
-        Process entries for a single day into work sessions.
-        Handles multiple in/out pairs per day.
-        
-        Returns:
-            List of work sessions for the day
+        Process time entries into daily work sessions.
+        Handles sessions that span across midnight by processing all entries chronologically.
         """
         sessions = []
         pending_ins = deque()
         
+        # Process all entries chronologically (already sorted by timestamp)
         for entry in entries:
             if entry.action == 'in':
                 pending_ins.append((entry.timestamp, entry.id))
@@ -161,7 +127,12 @@ class WorkingTimeReport:
                 duration = entry.timestamp - clock_in_time
                 total_seconds = int(duration.total_seconds())
                 
+                # Use clock_in date for assigning session to a day
+                # This ensures sessions spanning midnight are counted on the day they started
+                session_date = clock_in_time.date()
+                
                 sessions.append({
+                    'date': session_date,
                     'clock_in': clock_in_time,
                     'clock_out': entry.timestamp,
                     'total_seconds': total_seconds,
@@ -174,7 +145,22 @@ class WorkingTimeReport:
         if pending_ins:
             logger.info(f"{len(pending_ins)} open session(s) for {self.employee.name} remain without a clock-out")
         
-        return sessions
+        # Convert sessions to daily_sessions format
+        for session in sessions:
+            total_seconds = session.get('total_seconds', session['total_minutes'] * 60)
+            hours = total_seconds / 3600.0
+            minutes = total_seconds / 60.0
+            
+            self.daily_sessions.append({
+                'date': session['date'],
+                'clock_in': session['clock_in'],
+                'clock_out': session['clock_out'],
+                'hours': hours,
+                'minutes': minutes,
+                'total_minutes': session['total_minutes'],
+                'total_seconds': total_seconds,
+                'formatted_time': session['formatted_time']
+            })
     
     def _calculate_totals(self):
         """Calculate total hours/minutes/seconds worked"""

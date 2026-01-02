@@ -105,6 +105,24 @@ class TimeEntry(BaseModel):
             TimeEntry.employee == employee,
             TimeEntry.active == True
         ).order_by(TimeEntry.timestamp.desc()).first()
+    
+    @staticmethod
+    def get_last_before_timestamp(employee, timestamp):
+        """
+        Get the last entry for an employee before a given timestamp.
+        
+        Args:
+            employee: Employee object
+            timestamp: datetime to find entries before
+            
+        Returns:
+            TimeEntry or None if no entry found
+        """
+        return TimeEntry.select().where(
+            TimeEntry.employee == employee,
+            TimeEntry.active == True,
+            TimeEntry.timestamp < timestamp
+        ).order_by(TimeEntry.timestamp.desc()).first()
 
 
 class LgavDayEntry(BaseModel):
