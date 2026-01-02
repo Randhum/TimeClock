@@ -33,6 +33,8 @@ class EntryEditorPopup(Popup):
         self.entries = []
         # Default to today, but allow selection of past 7 days
         self.selected_date = datetime.date.today()
+        # Recalculate all actions before loading to ensure consistency
+        self._recalculate_all_actions()
         self._load_entries_for_date()
         self._build_ui()
     
@@ -79,7 +81,7 @@ class EntryEditorPopup(Popup):
         
         # Notice
         notice = Label(
-            text="Tap 'Delete' to remove an entry. Actions will auto-update.",
+            text="Tap 'Delete' to remove an entry. Actions are automatically determined.",
             size_hint_y=None,
             height='35dp',
             font_size='14sp'
@@ -153,9 +155,11 @@ class EntryEditorPopup(Popup):
             soft_delete_time_entries([entry.id])
             logger.info(f"[ENTRY_EDITOR] Deleted entry ID={entry.id}")
             
-            # Reload entries and update actions for remaining entries
+            # Recalculate all actions for all active entries before reloading
+            self._recalculate_all_actions()
+            
+            # Reload entries
             self._load_entries_for_date()
-            self._update_actions_after_deletion(entry.id)
             # Rebuild UI to reflect changes
             self._rebuild_entries_list()
             
@@ -237,6 +241,10 @@ class EntryEditorPopup(Popup):
                     active=True
                 )
             logger.info(f"[ENTRY_EDITOR] Added manual entry {action} at {timestamp}")
+            
+            # Recalculate all actions for all active entries before reloading
+            self._recalculate_all_actions()
+            
             # Reload entries and inform user
             self._load_entries_for_date()
             # Rebuild UI to show new entry
@@ -252,19 +260,40 @@ class EntryEditorPopup(Popup):
         app.show_popup("Erfolg", "Eintrag erfolgreich gelöscht")
         app.root.current = "timeclock"
     
-    def _update_actions_after_deletion(self, deleted_entry_id):
-        """Flip actions for all entries after the deleted one to maintain IN/OUT alternation"""
-        entries_to_flip = [e for e in self.entries if e.id > deleted_entry_id and e.active]
-        if not entries_to_flip:
-            return
-        
+    def _recalculate_all_actions(self):
+        """
+        Recalculate actions for all active entries for this employee in chronological order.
+        This ensures proper IN/OUT alternation regardless of edits/deletions.
+        """
         try:
             ensure_db_connection()
+            
+            # Get all active entries for this employee, ordered chronologically
+            all_entries = list(TimeEntry.select().where(
+                TimeEntry.employee == self.employee,
+                TimeEntry.active == True
+            ).order_by(TimeEntry.timestamp.asc()))
+            
+            if not all_entries:
+                return
+            
+            # Recalculate actions based on chronological order
             with db.atomic():
-                for entry in entries_to_flip:
-                    new_action = "out" if entry.action == "in" else "in"
-                    TimeEntry.update(action=new_action).where(TimeEntry.id == entry.id).execute()
-            logger.info(f"[ENTRY_EDITOR] Flipped {len(entries_to_flip)} entry actions")
+                for i, entry in enumerate(all_entries):
+                    # First entry should be 'in', then alternate
+                    if i == 0:
+                        expected_action = 'in'
+                    else:
+                        # Previous entry's action determines next
+                        prev_action = all_entries[i-1].action
+                        expected_action = 'out' if prev_action == 'in' else 'in'
+                    
+                    # Update if action is incorrect
+                    if entry.action != expected_action:
+                        TimeEntry.update(action=expected_action).where(TimeEntry.id == entry.id).execute()
+                        logger.debug(f"[ENTRY_EDITOR] Updated entry ID={entry.id} action from {entry.action} to {expected_action}")
+            
+            logger.info(f"[ENTRY_EDITOR] Recalculated actions for {len(all_entries)} entries")
         except Exception as e:
-            logger.error(f"[ENTRY_EDITOR] Error updating actions: {e}")
+            logger.error(f"[ENTRY_EDITOR] Error recalculating actions: {e}")
 

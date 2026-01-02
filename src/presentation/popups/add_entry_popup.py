@@ -11,6 +11,7 @@ from kivy.app import App
 from ..widgets import DebouncedButton
 from .limited_date_picker_popup import LimitedDatePickerPopup
 from .time_picker_popup import TimePickerPopup
+from ...data.database import TimeEntry, ensure_db_connection
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,8 @@ class AddEntryPopup(Popup):
         # Use initial_date if provided, otherwise use today
         self.selected_date = initial_date if initial_date else now.date()
         self.selected_time = now.time().replace(second=0, microsecond=0)
-        self.selected_action = 'in'
+        # Action will be auto-determined based on last entry before timestamp
+        self.selected_action = None
 
         # Main container with ScrollView
         main_layout = BoxLayout(orientation='vertical', spacing=0, padding=0)
@@ -73,32 +75,18 @@ class AddEntryPopup(Popup):
         self.time_btn.bind(on_release=lambda *_: self._pick_time())
         layout.add_widget(self.time_btn)
 
-        # Action selection
-        action_row = BoxLayout(
-            orientation='horizontal',
-            spacing=15,
+        # Action display (auto-determined, read-only)
+        self.action_label = Label(
+            text="Action: Will be determined automatically",
             size_hint_y=None,
             height='70dp',
-            padding=(0, 10, 0, 10)
+            font_size='20sp',
+            halign='center',
+            valign='middle',
+            text_size=(None, None)
         )
-        self.in_btn = DebouncedButton(
-            text="IN",
-            size_hint_x=0.5,
-            font_size='24sp',
-            background_color=(0.2, 0.8, 0.2, 1)
-        )
-        self.out_btn = DebouncedButton(
-            text="OUT",
-            size_hint_x=0.5,
-            font_size='24sp',
-            background_color=(0.8, 0.2, 0.2, 1)
-        )
-        self.in_btn.bind(on_release=lambda *_: self._set_action('in'))
-        self.out_btn.bind(on_release=lambda *_: self._set_action('out'))
-        action_row.add_widget(self.in_btn)
-        action_row.add_widget(self.out_btn)
-        layout.add_widget(action_row)
-        self._update_action_buttons()
+        layout.add_widget(self.action_label)
+        self._update_action_display()
 
         # Add layout to scroll view
         scroll.add_widget(layout)
@@ -153,25 +141,43 @@ class AddEntryPopup(Popup):
     def _set_date(self, date_obj):
         self.selected_date = date_obj
         self.date_btn.text = f"Datum: {self.selected_date.strftime('%d.%m.%Y')}"
+        self._update_action_display()
 
     def _set_time(self, time_obj):
         self.selected_time = time_obj
         self.time_btn.text = f"Zeit: {self.selected_time.strftime('%H:%M')}"
+        self._update_action_display()
 
-    def _set_action(self, action):
-        self.selected_action = action
-        self._update_action_buttons()
-
-    def _update_action_buttons(self):
-        if self.selected_action == 'in':
-            self.in_btn.background_color = (0.1, 0.6, 0.1, 1)
-            self.out_btn.background_color = (0.6, 0.2, 0.2, 1)
-        else:
-            self.in_btn.background_color = (0.2, 0.8, 0.2, 1)
-            self.out_btn.background_color = (0.6, 0.1, 0.1, 1)
+    def _update_action_display(self):
+        """Auto-determine action based on last entry before selected timestamp"""
+        try:
+            ensure_db_connection()
+            timestamp = datetime.datetime.combine(self.selected_date, self.selected_time)
+            last_entry = TimeEntry.get_last_before_timestamp(self.employee, timestamp)
+            
+            # Determine action: if no entry or last was 'out', next is 'in'; otherwise 'out'
+            if not last_entry or last_entry.action == 'out':
+                self.selected_action = 'in'
+            else:
+                self.selected_action = 'out'
+            
+            # Update display
+            action_text = "IN" if self.selected_action == 'in' else "OUT"
+            action_color = (0.2, 0.8, 0.2, 1) if self.selected_action == 'in' else (0.8, 0.2, 0.2, 1)
+            self.action_label.text = f"Action: {action_text} (auto-determined)"
+            self.action_label.color = action_color
+        except Exception as e:
+            logger.error(f"[ADD_ENTRY] Error determining action: {e}")
+            self.selected_action = 'in'  # Default fallback
+            self.action_label.text = "Action: IN (default)"
+            self.action_label.color = (0.2, 0.8, 0.2, 1)
 
     def _save(self):
         try:
+            if self.selected_action is None:
+                # Ensure action is determined before saving
+                self._update_action_display()
+            
             ts = datetime.datetime.combine(self.selected_date, self.selected_time)
             if self.on_save_callback:
                 self.on_save_callback(self.selected_action, ts)

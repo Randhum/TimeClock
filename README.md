@@ -95,13 +95,20 @@ On first launch, you'll be prompted to register an **administrator**. This step 
 
 ### Custom Greeting Messages
 
-Customize messages displayed when employees clock in/out by editing text files in `src/greetings/`:
+Customize messages displayed when employees clock in/out by editing text files in `src/data/greetings/`:
 
 - **Shift-specific files**: `greetings_in_morning_de.txt`, `greetings_out_evening_ch.txt`, etc.
 - **Format**: `greetings_{in|out}_{morning|midday|evening}_{ch|de|it|rm}.txt`
 - **Languages**: `ch` (Schweizerdeutsch), `de` (Deutsch), `it` (Italienisch), `rm` (Rätoromanisch)
 - **Fallback files**: `greetings_in.txt`, `greetings_out.txt`
 - **Placeholders**: Use `[Name]` to insert employee's first name
+
+**Shift Selection:**
+- **Morning**: 04:00 - 11:00
+- **Midday**: 11:00 - 17:00
+- **Evening**: 17:00 - 04:00
+- In overlapping time ranges (e.g., 10:00-14:00), the system randomly selects from applicable shifts
+- The selected greeting file matches the clock action (`in` or `out`) and is randomly chosen from the appropriate time-based shift
 
 ### Export Directory
 
@@ -174,6 +181,7 @@ Januar 2026
 - Each day shows the sum of all work sessions for that day
 - Days without clock entries show as empty
 - Multiple clock in/out pairs per day are automatically summed
+- **Sessions spanning midnight**: If an employee clocks in before midnight and clocks out after midnight, the session is correctly matched and counted on the day the clock-in occurred
 
 #### Requirements
 
@@ -183,6 +191,14 @@ pip install openpyxl reportlab
 ```
 
 These are included in `requirements.txt` and installed automatically.
+
+### Editing Time Entries
+
+When editing time entries (adding or deleting entries):
+
+- **Automatic Action Determination**: The system automatically determines whether an entry should be "IN" or "OUT" based on the chronological order of entries. You no longer need to manually select the action when adding entries.
+- **Action Recalculation**: When entries are added, deleted, or modified, all remaining entries have their actions automatically recalculated to maintain proper IN/OUT alternation.
+- **Session Matching**: Work sessions are matched chronologically across day boundaries. If you clock in before midnight and clock out after midnight, the session is correctly linked and counted on the day you clocked in.
 
 ### RFID Provider
 
