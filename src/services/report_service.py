@@ -91,7 +91,11 @@ class WorkingTimeReport:
         }
     
     def _get_time_entries(self) -> List[TimeEntry]:
-        """Get all time entries for the employee in the date range"""
+        """
+        Get all time entries for the employee in the date range.
+        Includes clock-out entries up to 24 hours after end_date to capture
+        sessions that started on the last day but ended after midnight.
+        """
         query = TimeEntry.select().where(
             TimeEntry.employee == self.employee,
             TimeEntry.active == True
@@ -102,8 +106,11 @@ class WorkingTimeReport:
             start_datetime = datetime.datetime.combine(self.start_date, datetime.time.min)
             query = query.where(TimeEntry.timestamp >= start_datetime)
         
+        # Extend end_datetime by 24 hours to include clock-out entries for sessions
+        # that started on end_date but clocked out after midnight
         end_datetime = datetime.datetime.combine(self.end_date, datetime.time.max)
-        query = query.where(TimeEntry.timestamp <= end_datetime)
+        end_datetime_extended = end_datetime + datetime.timedelta(days=1)
+        query = query.where(TimeEntry.timestamp <= end_datetime_extended)
         
         return list(query)
     
@@ -342,12 +349,15 @@ class WorkingTimeReport:
         end = report['end_date']
         
         # Create a map of date -> total seconds worked that day (from clock entries)
+        # Only include sessions that started within the date range
         daily_totals = {}
         for session in report['daily_sessions']:
             date = session['date']
-            if date not in daily_totals:
-                daily_totals[date] = 0
-            daily_totals[date] += session['total_seconds']
+            # Only include sessions that started within the report date range
+            if start <= date <= end:
+                if date not in daily_totals:
+                    daily_totals[date] = 0
+                daily_totals[date] += session['total_seconds']
         
         # Organize by months
         months = {}
