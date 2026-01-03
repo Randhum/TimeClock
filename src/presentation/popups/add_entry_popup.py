@@ -159,7 +159,7 @@ class AddEntryPopup(Popup):
             # Determine action: if no entry or last was 'out', next is 'in'; otherwise 'out'
             if not last_entry or last_entry.action == 'out':
                 self.selected_action = 'in'
-        else:
+            else:
                 self.selected_action = 'out'
             
             # Update display

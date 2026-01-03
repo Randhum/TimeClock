@@ -121,7 +121,11 @@ class WorkingTimeReport:
         )
         query = query.where(TimeEntry.timestamp <= end_datetime)
         
-        return list(query)
+        entries = list(query)
+        logger.info(f"Retrieved {len(entries)} entries for {self.employee.name} (range: {self.start_date} to {self.end_date})")
+        for e in entries:
+            logger.debug(f"  Entry: {e.timestamp} - {e.action}")
+        return entries
     
     def _process_entries(self, entries: List[TimeEntry]):
         """
