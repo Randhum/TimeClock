@@ -105,7 +105,7 @@ class TimeEntry(BaseModel):
             TimeEntry.employee == employee,
             TimeEntry.active == True
         ).order_by(TimeEntry.timestamp.desc()).first()
-    
+
     @staticmethod
     def get_last_before_timestamp(employee, timestamp):
         """

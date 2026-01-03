@@ -92,25 +92,34 @@ class WorkingTimeReport:
     
     def _get_time_entries(self) -> List[TimeEntry]:
         """
-        Get all time entries for the employee in the date range.
-        Includes clock-out entries up to 24 hours after end_date to capture
-        sessions that started on the last day but ended after midnight.
+        Get time entries for the employee.
+        
+        To properly handle sessions spanning midnight, we need to:
+        1. Include entries from before start_date (to match pending clock-ins)
+        2. Include entries after end_date (to find clock-outs for sessions starting on end_date)
+        
+        The filtering by date range happens when building sessions, not when querying entries.
         """
         query = TimeEntry.select().where(
             TimeEntry.employee == self.employee,
             TimeEntry.active == True
         ).order_by(TimeEntry.timestamp.asc())
         
-        # Filter by date range if specified
+        # Get entries from a wider range to ensure we capture all related sessions
+        # Start from 1 day before start_date to catch any pending clock-ins
         if self.start_date:
-            start_datetime = datetime.datetime.combine(self.start_date, datetime.time.min)
+            start_datetime = datetime.datetime.combine(
+                self.start_date - datetime.timedelta(days=1), 
+                datetime.time.min
+            )
             query = query.where(TimeEntry.timestamp >= start_datetime)
         
-        # Extend end_datetime by 24 hours to include clock-out entries for sessions
-        # that started on end_date but clocked out after midnight
-        end_datetime = datetime.datetime.combine(self.end_date, datetime.time.max)
-        end_datetime_extended = end_datetime + datetime.timedelta(days=1)
-        query = query.where(TimeEntry.timestamp <= end_datetime_extended)
+        # End 1 day after end_date to catch clock-outs for sessions starting on end_date
+        end_datetime = datetime.datetime.combine(
+            self.end_date + datetime.timedelta(days=1), 
+            datetime.time.max
+        )
+        query = query.where(TimeEntry.timestamp <= end_datetime)
         
         return list(query)
     
@@ -148,6 +157,7 @@ class WorkingTimeReport:
                     'clock_in_entry_id': clock_in_id,
                     'clock_out_entry_id': entry.id
                 })
+                logger.debug(f"Session created: {clock_in_time} -> {entry.timestamp} (date: {session_date}, duration: {_format_hms(total_seconds)})")
         
         if pending_ins:
             logger.info(f"{len(pending_ins)} open session(s) for {self.employee.name} remain without a clock-out")
@@ -358,6 +368,9 @@ class WorkingTimeReport:
                 if date not in daily_totals:
                     daily_totals[date] = 0
                 daily_totals[date] += session['total_seconds']
+                logger.debug(f"LGAV: Including session on {date}: {session['clock_in']} -> {session['clock_out']} = {session['total_seconds']}s")
+            else:
+                logger.debug(f"LGAV: Excluding session on {date} (outside range {start} to {end})")
         
         # Organize by months
         months = {}
