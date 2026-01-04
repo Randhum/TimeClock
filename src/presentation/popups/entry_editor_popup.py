@@ -39,16 +39,20 @@ class EntryEditorPopup(Popup):
         self._build_ui()
     
     def _load_entries_for_date(self):
-        """Load all time entries for the selected date"""
+        """Load all time entries for the selected date (fresh from database)"""
+        ensure_db_connection()
         start_datetime = datetime.datetime.combine(self.selected_date, datetime.time.min)
         end_datetime = datetime.datetime.combine(self.selected_date, datetime.time.max)
         
+        # Query fresh from database to ensure we have the latest action values
         self.entries = list(TimeEntry.select().where(
             TimeEntry.employee == self.employee,
             TimeEntry.active == True,
             TimeEntry.timestamp >= start_datetime,
             TimeEntry.timestamp <= end_datetime
         ).order_by(TimeEntry.timestamp.asc()))
+        
+        logger.debug(f"[ENTRY_EDITOR] Loaded {len(self.entries)} entries for {self.selected_date}")
     
     def _build_ui(self):
         """Build the UI with all entries"""
@@ -118,9 +122,18 @@ class EntryEditorPopup(Popup):
         """Create a row widget for a single entry"""
         row = BoxLayout(size_hint_y=None, height='55dp', spacing=10, padding=[5, 0, 5, 0])
         
-        # Timestamp and action label
+        # Ensure we're reading the actual database value (refresh if needed)
+        # Reload the entry from database to ensure we have the latest action value
+        try:
+            fresh_entry = TimeEntry.get_by_id(entry.id)
+            entry.action = fresh_entry.action
+        except TimeEntry.DoesNotExist:
+            logger.warning(f"[ENTRY_EDITOR] Entry ID={entry.id} no longer exists")
+        
+        # Timestamp and action label - display the actual database value
         action_color = (0.2, 0.8, 0.2, 1) if entry.action == 'in' else (0.8, 0.2, 0.2, 1)
         action_text = "IN" if entry.action == 'in' else "OUT"
+        logger.debug(f"[ENTRY_EDITOR] Displaying entry ID={entry.id}: {entry.timestamp} - {entry.action.upper()}")
         
         label = Label(
             text=f"{entry.timestamp.strftime('%H:%M:%S')} - {action_text}",
@@ -277,23 +290,34 @@ class EntryEditorPopup(Popup):
             if not all_entries:
                 return
             
-            # Recalculate actions based on chronological order
+            # First, calculate all expected actions in memory (based on chronological order)
+            # This ensures we use the correct logic, not stale database values
+            expected_actions = []
+            for i in range(len(all_entries)):
+                if i == 0:
+                    # First entry should always be 'in'
+                    expected_actions.append('in')
+                else:
+                    # Alternate based on previous expected action (not the database value!)
+                    prev_expected = expected_actions[i-1]
+                    expected_actions.append('out' if prev_expected == 'in' else 'in')
+            
+            # Now update all entries that need changes
+            updates_made = 0
             with db.atomic():
-                for i, entry in enumerate(all_entries):
-                    # First entry should be 'in', then alternate
-                    if i == 0:
-                        expected_action = 'in'
-                    else:
-                        # Previous entry's action determines next
-                        prev_action = all_entries[i-1].action
-                        expected_action = 'out' if prev_action == 'in' else 'in'
-                    
+                for entry, expected_action in zip(all_entries, expected_actions):
                     # Update if action is incorrect
                     if entry.action != expected_action:
                         TimeEntry.update(action=expected_action).where(TimeEntry.id == entry.id).execute()
                         logger.debug(f"[ENTRY_EDITOR] Updated entry ID={entry.id} action from {entry.action} to {expected_action}")
+                        updates_made += 1
+                        # Update the entry object in memory so subsequent reads are correct
+                        entry.action = expected_action
             
-            logger.info(f"[ENTRY_EDITOR] Recalculated actions for {len(all_entries)} entries")
+            if updates_made > 0:
+                logger.info(f"[ENTRY_EDITOR] Recalculated actions for {len(all_entries)} entries ({updates_made} updated)")
+            else:
+                logger.debug(f"[ENTRY_EDITOR] Actions already correct for {len(all_entries)} entries")
         except Exception as e:
             logger.error(f"[ENTRY_EDITOR] Error recalculating actions: {e}")
 
