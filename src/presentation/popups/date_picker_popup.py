@@ -45,24 +45,24 @@ class DatePickerPopup(Popup):
         header = BoxLayout(orientation='horizontal', size_hint_y=None, height='60dp', spacing=10)
         
         prev_month_btn = DebouncedButton(
-            text="<",
-            font_size='30sp',
-            size_hint_x=0.2,
+            text="<<",
+            font_size='24sp',
+            size_hint_x=0.15,
             background_color=(0.3, 0.5, 0.7, 1)
         )
         prev_month_btn.bind(on_release=lambda x: self._change_month(-1))
         
         month_year_label = Label(
             text=f"{self._get_month_name(current_date.month)} {current_date.year}",
-            font_size='24sp',
-            size_hint_x=0.6,
+            font_size='22sp',
+            size_hint_x=0.7,
             bold=True
         )
         
         next_month_btn = DebouncedButton(
-            text=">",
-            font_size='30sp',
-            size_hint_x=0.2,
+            text=">>",
+            font_size='24sp',
+            size_hint_x=0.15,
             background_color=(0.3, 0.5, 0.7, 1)
         )
         next_month_btn.bind(on_release=lambda x: self._change_month(1))
