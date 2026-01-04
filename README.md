@@ -439,10 +439,80 @@ TimeClock/
 │       └── export_utils.py       # Export utilities
 │
 ├── scripts/                      # Utility scripts
-│   └── migrate_db.py             # Database migration script
+│   ├── migrate_db.py             # Database migration script
+│   ├── list_employee_entries.py  # List clock entries for an employee
+│   └── delete_entry.py           # Delete a clock entry by ID and recalculate actions
 ├── exports/                      # Default export directory
 ├── requirements.txt
 └── README.md
+```
+
+---
+
+## Utility Scripts
+
+### List Employee Clock Entries
+
+The `scripts/list_employee_entries.py` script allows you to list all clock entries for a specific employee from the command line.
+
+**Usage:**
+
+```bash
+# List entries by employee name (partial match)
+python scripts/list_employee_entries.py --name "John Doe"
+
+# List entries by RFID tag
+python scripts/list_employee_entries.py --tag "ABCD1234"
+
+# Interactive mode - list all employees and select one
+python scripts/list_employee_entries.py --all
+```
+
+**Output:**
+- Displays all clock entries (IN/OUT) for the selected employee
+- Shows entry ID, timestamp, action, and status
+- Entries are sorted by timestamp (newest first)
+
+**Note:** If the database is encrypted, ensure `TIMECLOCK_ENV_KEY` environment variable is set before running the script.
+
+### Delete Clock Entry
+
+The `scripts/delete_entry.py` script allows you to soft-delete a clock entry by ID and automatically recalculate all following actions for that employee.
+
+**Usage:**
+
+```bash
+# Delete entry by ID with employee name verification
+python scripts/delete_entry.py --id 431 --name "John Doe"
+
+# Delete entry by ID with RFID tag verification
+python scripts/delete_entry.py --id 408 --tag "ABCD1234"
+
+# Force delete without verification (use with caution)
+python scripts/delete_entry.py --id 431 --force
+```
+
+**Features:**
+- Verifies the entry belongs to the specified employee (unless `--force` is used)
+- Soft-deletes the entry (sets `active=False`)
+- Automatically recalculates all remaining active entries for that employee
+- Ensures proper IN/OUT alternation after deletion
+- Shows which entries were updated during recalculation
+
+**Output:**
+- Displays entry information before deletion
+- Prompts for confirmation (unless `--force` is used)
+- Shows which subsequent entries had their actions updated
+- Provides summary of changes made
+
+**Note:** If the database is encrypted, ensure `TIMECLOCK_ENV_KEY` environment variable is set before running the script.
+
+### Database Migration
+
+The `scripts/migrate_db.py` script migrates an unencrypted database to SQLCipher encrypted format. See the script's help for usage:
+
+```bash
+python scripts/migrate_db.py --help
 ```
 
 ---
