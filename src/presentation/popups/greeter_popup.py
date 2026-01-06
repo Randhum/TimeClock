@@ -50,7 +50,7 @@ class GreeterPopup(Popup):
             self.message = self._get_random_message(filename, "Schönen Feierabend!", name)
             self.color_theme = (1, 0.6, 0, 1)  # Orange
             
-        Clock.schedule_once(self.dismiss, 3)
+        Clock.schedule_once(self.dismiss, 8)
 
     def _get_shift(self):
         """Determine current shift based on time of day"""
