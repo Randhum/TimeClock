@@ -143,9 +143,41 @@ class WorkingTimeReport:
                 if not pending_ins:
                     logger.warning(f"Clock out without clock in for {self.employee.name} on {entry.timestamp.date()}")
                     continue
-                clock_in_time, clock_in_id = pending_ins.popleft()
+                
+                # Find the most recent clock-in that occurred BEFORE this clock-out
+                # Only look forward - clock-in must occur before clock-out
+                clock_in_time = None
+                clock_in_id = None
+                unmatched_ins = []
+                
+                # Search through pending clock-ins to find one that occurred before this clock-out
+                while pending_ins:
+                    candidate_time, candidate_id = pending_ins.popleft()
+                    if candidate_time < entry.timestamp:
+                        # Valid match: clock-in occurred before clock-out
+                        clock_in_time = candidate_time
+                        clock_in_id = candidate_id
+                        break
+                    else:
+                        # Clock-in occurs at or after clock-out - invalid, keep for later matching
+                        unmatched_ins.append((candidate_time, candidate_id))
+                
+                # Restore unmatched clock-ins (shouldn't happen with sorted entries, but be safe)
+                for unmatched in reversed(unmatched_ins):
+                    pending_ins.appendleft(unmatched)
+                
+                # Only create session if we found a valid clock-in that occurred before clock-out
+                if clock_in_time is None:
+                    logger.warning(f"No valid clock-in found before clock-out for {self.employee.name} at {entry.timestamp} - skipping")
+                    continue
+                
                 duration = entry.timestamp - clock_in_time
                 total_seconds = int(duration.total_seconds())
+                
+                # Validate duration is positive (should always be true if clock_in_time < entry.timestamp)
+                if total_seconds < 0:
+                    logger.warning(f"Negative duration detected: clock-in {clock_in_time} -> clock-out {entry.timestamp} - skipping")
+                    continue
                 
                 # Use clock_in date for assigning session to a day
                 # This ensures sessions spanning midnight are counted on the day they started

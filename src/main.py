@@ -43,7 +43,6 @@ from .data.database import (
     get_employee_by_tag, get_admin_count
 )
 from .hardware.rfid import get_rfid_provider
-from .services.report_service import generate_wt_report
 from .presentation.screens.screensaver_screen import ScreensaverScreen
 
 # Import new services
@@ -312,13 +311,9 @@ class TimeClockApp(App):
             self._request_badge_identification('view_report')
     
     def _display_today_report(self, employee):
-        """Display today's report for the given employee"""
-        today = datetime.date.today()
-        report = generate_wt_report(employee, today, today)
-        text = report.to_text()
-        
-        # Use popup service to show report
-        self.popup_service.show_report(f"Tagesbericht - {employee.name}", text)
+        """Display today's report for the given employee with date picker"""
+        from .presentation.popups.view_sessions_popup import ViewSessionsPopup
+        ViewSessionsPopup(employee).open()
     
     def _request_badge_identification(self, action_type):
         """
