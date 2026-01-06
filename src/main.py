@@ -91,7 +91,15 @@ Window.softinput_mode = 'below_target'
 # ============================================================================
 
 class WindowManager(ScreenManager):
-    pass
+    """Screen manager with popup cleanup on screen change"""
+    
+    def on_current(self, instance, value):
+        """Called when current screen changes - close all popups"""
+        super().on_current(instance, value)
+        # Close all popups when switching screens to prevent overlap
+        app = App.get_running_app()
+        if app and hasattr(app, 'popup_service'):
+            app.popup_service.close_all_popups()
 
 class TimeClockApp(App):
     """Main application - refactored to use services"""
@@ -292,6 +300,8 @@ class TimeClockApp(App):
         employee = self.state_service.last_clocked_employee
         if employee:
             # Within grace period, proceed directly
+            # Close any existing main popups before opening new one
+            self.popup_service.close_main_popup()
             EntryEditorPopup(
                 employee,
                 on_deleted=lambda: self.state_service.clear_last_clocked_employee()
@@ -313,7 +323,10 @@ class TimeClockApp(App):
     def _display_today_report(self, employee):
         """Display today's report for the given employee with date picker"""
         from .presentation.popups.view_sessions_popup import ViewSessionsPopup
-        ViewSessionsPopup(employee).open()
+        # Close any existing main popups before opening new one
+        self.popup_service.close_main_popup()
+        popup = ViewSessionsPopup(employee)
+        popup.open()
     
     def _request_badge_identification(self, action_type):
         """
@@ -324,6 +337,8 @@ class TimeClockApp(App):
         """
         # Close any existing identification popup using state service
         self.state_service.clear_pending_identification()
+        # Close any existing main popups before opening new one
+        self.popup_service.close_main_popup()
         
         # Create identification popup
         popup = BadgeIdentificationPopup(
