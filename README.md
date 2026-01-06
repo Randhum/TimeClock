@@ -441,7 +441,8 @@ TimeClock/
 ├── scripts/                      # Utility scripts
 │   ├── migrate_db.py             # Database migration script
 │   ├── list_employee_entries.py  # List clock entries for an employee
-│   └── delete_entry.py           # Delete a clock entry by ID and recalculate actions
+│   ├── delete_entry.py           # Delete a clock entry by ID and recalculate actions
+│   └── change_employee_name.py   # Change an employee's name
 ├── exports/                      # Default export directory
 ├── requirements.txt
 └── README.md
@@ -504,6 +505,38 @@ python scripts/delete_entry.py --id 431 --force
 - Prompts for confirmation (unless `--force` is used)
 - Shows which subsequent entries had their actions updated
 - Provides summary of changes made
+
+**Note:** If the database is encrypted, ensure `TIMECLOCK_ENV_KEY` environment variable is set before running the script.
+
+### Change Employee Name
+
+The `scripts/change_employee_name.py` script allows you to change an employee's name.
+
+**Usage:**
+
+```bash
+# Change name by current name
+python scripts/change_employee_name.py --name "John Doe" --new-name "John Smith"
+
+# Change name by RFID tag
+python scripts/change_employee_name.py --tag "ABCD1234" --new-name "Jane Doe"
+
+# Interactive mode - list all employees and select one
+python scripts/change_employee_name.py --all
+```
+
+**Features:**
+- Find employee by name (partial match) or RFID tag
+- Interactive mode to select from all employees
+- Validates new name (not empty, max 100 characters)
+- Shows current employee information before change
+- Confirms change before applying (unless `--new-name` is provided)
+- Updates the name in the database
+
+**Output:**
+- Displays current employee information
+- Shows old and new name
+- Confirms successful update
 
 **Note:** If the database is encrypted, ensure `TIMECLOCK_ENV_KEY` environment variable is set before running the script.
 
