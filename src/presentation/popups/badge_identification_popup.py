@@ -71,6 +71,21 @@ class BadgeIdentificationPopup(Popup):
         layout.add_widget(cancel_btn)
         
         self.content = layout
+        
+        # Register with popup service for proper management
+        app = App.get_running_app()
+        if app and hasattr(app, 'popup_service'):
+            app.popup_service.close_main_popup()  # Close any existing main popup
+            app.popup_service._register_popup(self, is_main=True)
+        
+        # Ensure proper cleanup on dismiss
+        self.bind(on_dismiss=self._on_dismiss)
+    
+    def _on_dismiss(self, instance):
+        """Cleanup when popup is dismissed"""
+        app = App.get_running_app()
+        if app and hasattr(app, 'popup_service'):
+            app.popup_service._unregister_popup(self)
     
     def _on_cancel(self, *args):
         """Handle cancel button - clear pending identification"""

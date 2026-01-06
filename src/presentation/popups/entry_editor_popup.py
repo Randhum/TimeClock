@@ -33,10 +33,26 @@ class EntryEditorPopup(Popup):
         self.entries = []
         # Default to today, but allow selection of past 7 days
         self.selected_date = datetime.date.today()
+        
+        # Register with popup service for proper management
+        app = App.get_running_app()
+        if app and hasattr(app, 'popup_service'):
+            app.popup_service.close_main_popup()  # Close any existing main popup
+            app.popup_service._register_popup(self, is_main=True)
+        
         # Recalculate all actions before loading to ensure consistency
         self._recalculate_all_actions()
         self._load_entries_for_date()
         self._build_ui()
+        
+        # Ensure proper cleanup on dismiss
+        self.bind(on_dismiss=self._on_dismiss)
+    
+    def _on_dismiss(self, instance):
+        """Cleanup when popup is dismissed"""
+        app = App.get_running_app()
+        if app and hasattr(app, 'popup_service'):
+            app.popup_service._unregister_popup(self)
     
     def _load_entries_for_date(self):
         """Load all time entries for the selected date (fresh from database)"""

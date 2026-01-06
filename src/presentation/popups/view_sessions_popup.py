@@ -29,8 +29,23 @@ class ViewSessionsPopup(Popup):
         self.employee = employee
         self.selected_date = datetime.date.today()
         
+        # Register with popup service for proper management
+        app = App.get_running_app()
+        if app and hasattr(app, 'popup_service'):
+            app.popup_service.close_main_popup()  # Close any existing main popup
+            app.popup_service._register_popup(self, is_main=True)
+        
         self._build_ui()
         self._load_report_for_date()
+        
+        # Ensure proper cleanup on dismiss
+        self.bind(on_dismiss=self._on_dismiss)
+    
+    def _on_dismiss(self, instance):
+        """Cleanup when popup is dismissed"""
+        app = App.get_running_app()
+        if app and hasattr(app, 'popup_service'):
+            app.popup_service._unregister_popup(self)
     
     def _build_ui(self):
         """Build the UI with date selection and report display"""
