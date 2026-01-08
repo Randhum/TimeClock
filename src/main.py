@@ -51,7 +51,7 @@ from .services.state_service import StateService
 from .services.popup_service import PopupService
 
 # Import extracted widgets (needed for KV file imports)
-from .presentation.widgets import DebouncedButton, FilteredTextInput, GlobalInputFilter, GlobalKeyFilter, GlobalInputFilter, GlobalKeyFilter
+from .presentation.widgets import DebouncedButton, FilteredTextInput
 
 # Import extracted popups
 from .presentation.popups import (
@@ -148,12 +148,8 @@ class TimeClockApp(App):
         # Initialize clock service with RFID and other services
         self.clock_service = ClockService(self.rfid, self.popup_service, self.state_service)
         
-        # Global input de-duplication (touch) to suppress double events everywhere
-        self._input_filter = GlobalInputFilter(Window)
-        self._input_filter.install()
-        # Global keyboard/VKeyboard de-duplication (text + function keys)
-        self._key_filter = GlobalKeyFilter(Window)
-        self._key_filter.install()
+        # Note: Removed GlobalInputFilter and GlobalKeyFilter - OS/Kivy should handle
+        # hardware-level duplicate events. DebouncedButton handles user double-clicks.
 
         # Idle Timer Setup
         Clock.schedule_interval(self.check_idle, 1)
@@ -331,8 +327,7 @@ class TimeClockApp(App):
             employee,
             on_deleted=lambda: self.state_service.clear_last_clocked_employee()
         )
-        if not (hasattr(popup, 'is_open') and popup.is_open):
-            popup.open()
+        popup.open()
 
     def show_today_report_popup(self):
         """Show today's report - uses state service"""
@@ -357,8 +352,7 @@ class TimeClockApp(App):
         """Open view sessions popup after delay"""
         from .presentation.popups.view_sessions_popup import ViewSessionsPopup
         popup = ViewSessionsPopup(employee)
-        if not (hasattr(popup, 'is_open') and popup.is_open):
-            popup.open()
+        popup.open()
     
     def _request_badge_identification(self, action_type):
         """
@@ -385,8 +379,7 @@ class TimeClockApp(App):
             action_type=action_type,
             on_identified=lambda emp: self._on_employee_identified(emp, action_type)
         )
-        if not (hasattr(popup, 'is_open') and popup.is_open):
-            popup.open()
+        popup.open()
         
         # Store pending identification using state service
         self.state_service.set_pending_identification(action_type, popup)

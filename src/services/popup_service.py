@@ -32,9 +32,8 @@ class PopupService:
             
             # Don't register if popup is already registered and open
             if popup in self._open_popups:
-                if hasattr(popup, 'is_open') and popup.is_open:
-                    logger.debug(f"Popup already registered and open: {popup}")
-                    return
+                logger.debug(f"Popup already registered: {popup}")
+                return
             
             if popup not in self._open_popups:
                 self._open_popups.append(popup)
@@ -73,7 +72,10 @@ class PopupService:
         
         # Dismiss outside lock to avoid blocking
         try:
-            if hasattr(popup, 'is_open') and popup.is_open:
+            # Check if popup is in our tracking list (means it's open)
+            with self._lock:
+                is_open = popup in self._open_popups
+            if is_open:
                 popup.dismiss()
             # Schedule a cleanup check
             Clock.schedule_once(lambda dt: self._cleanup_popup(popup), 0.1)
@@ -85,11 +87,15 @@ class PopupService:
     
     def _cleanup_popup(self, popup):
         """Final cleanup check for popup"""
-        if popup and popup.is_open:
-            try:
-                popup.dismiss()
-            except:
-                pass
+        if popup:
+            # Check if popup is still in our tracking list
+            with self._lock:
+                is_open = popup in self._open_popups
+            if is_open:
+                try:
+                    popup.dismiss()
+                except:
+                    pass
         self._unregister_popup(popup)
     
     def close_all_popups(self, except_popup=None):
@@ -131,9 +137,8 @@ class PopupService:
         )
         self._register_popup(popup, is_main=False)
         
-        # Only open if not already open
-        if not (hasattr(popup, 'is_open') and popup.is_open):
-            popup.open()
+        # Open the popup
+        popup.open()
         Clock.schedule_once(lambda dt: self._safe_dismiss(popup), duration)
     
     def _close_simple_popups(self):
@@ -151,8 +156,15 @@ class PopupService:
     
     def _safe_dismiss(self, popup):
         """Safely dismiss a popup"""
-        if popup and popup.is_open:
-            popup.dismiss()
+        if popup:
+            # Check if popup is in our tracking list (means it's open)
+            with self._lock:
+                is_open = popup in self._open_popups
+            if is_open:
+                try:
+                    popup.dismiss()
+                except Exception as e:
+                    logger.debug(f"Error dismissing popup: {e}")
     
     def show_error(self, title: str, message: str, duration: float = 5.0):
         """
@@ -175,9 +187,8 @@ class PopupService:
         )
         self._register_popup(popup, is_main=False)
         
-        # Only open if not already open
-        if not (hasattr(popup, 'is_open') and popup.is_open):
-            popup.open()
+        # Open the popup
+        popup.open()
         Clock.schedule_once(lambda dt: self._safe_dismiss(popup), duration)
     
     def show_success(self, title: str, message: str, duration: float = 3.0):
@@ -201,9 +212,8 @@ class PopupService:
         )
         self._register_popup(popup, is_main=False)
         
-        # Only open if not already open
-        if not (hasattr(popup, 'is_open') and popup.is_open):
-            popup.open()
+        # Open the popup
+        popup.open()
         Clock.schedule_once(lambda dt: self._safe_dismiss(popup), duration)
     
     def show_greeter(self, employee, action: str):
@@ -227,9 +237,8 @@ class PopupService:
         popup = GreeterPopup(employee, action)
         self._register_popup(popup, is_main=False)
         
-        # Only open if not already open
-        if not (hasattr(popup, 'is_open') and popup.is_open):
-            popup.open()
+        # Open the popup
+        popup.open()
     
     def show_report(self, title: str, report_text: str, size_hint=(0.95, 0.95)):
         """
@@ -286,7 +295,6 @@ class PopupService:
         close_btn.bind(on_release=lambda *_: self._safe_dismiss(popup))
         self._register_popup(popup, is_main=True)
         
-        # Only open if not already open
-        if not (hasattr(popup, 'is_open') and popup.is_open):
-            popup.open()
+        # Open the popup
+        popup.open()
 
