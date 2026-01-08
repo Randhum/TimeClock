@@ -302,13 +302,23 @@ class TimeClockApp(App):
             # Within grace period, proceed directly
             # Close any existing main popups before opening new one
             self.popup_service.close_main_popup()
-            EntryEditorPopup(
-                employee,
-                on_deleted=lambda: self.state_service.clear_last_clocked_employee()
-            ).open()
+            # Small delay to ensure previous popup is fully closed
+            Clock.schedule_once(
+                lambda dt: self._open_entry_editor(employee),
+                0.1
+            )
         else:
             # Outside grace period, require badge identification
             self._request_badge_identification('edit_sessions')
+    
+    def _open_entry_editor(self, employee):
+        """Open entry editor popup after delay"""
+        popup = EntryEditorPopup(
+            employee,
+            on_deleted=lambda: self.state_service.clear_last_clocked_employee()
+        )
+        if not (hasattr(popup, 'is_open') and popup.is_open):
+            popup.open()
 
     def show_today_report_popup(self):
         """Show today's report - uses state service"""
@@ -325,8 +335,16 @@ class TimeClockApp(App):
         from .presentation.popups.view_sessions_popup import ViewSessionsPopup
         # Close any existing main popups before opening new one
         self.popup_service.close_main_popup()
+        # Small delay to ensure previous popup is fully closed
+        from kivy.clock import Clock
+        Clock.schedule_once(lambda dt: self._open_view_sessions(employee), 0.1)
+    
+    def _open_view_sessions(self, employee):
+        """Open view sessions popup after delay"""
+        from .presentation.popups.view_sessions_popup import ViewSessionsPopup
         popup = ViewSessionsPopup(employee)
-        popup.open()
+        if not (hasattr(popup, 'is_open') and popup.is_open):
+            popup.open()
     
     def _request_badge_identification(self, action_type):
         """
@@ -340,12 +358,21 @@ class TimeClockApp(App):
         # Close any existing main popups before opening new one
         self.popup_service.close_main_popup()
         
+        # Small delay to ensure previous popup is fully closed
+        Clock.schedule_once(
+            lambda dt: self._open_badge_identification(action_type),
+            0.1
+        )
+    
+    def _open_badge_identification(self, action_type):
+        """Open badge identification popup after delay"""
         # Create identification popup
         popup = BadgeIdentificationPopup(
             action_type=action_type,
             on_identified=lambda emp: self._on_employee_identified(emp, action_type)
         )
-        popup.open()
+        if not (hasattr(popup, 'is_open') and popup.is_open):
+            popup.open()
         
         # Store pending identification using state service
         self.state_service.set_pending_identification(action_type, popup)

@@ -40,8 +40,9 @@ class EntryEditorPopup(Popup):
             app.popup_service.close_main_popup()  # Close any existing main popup
             app.popup_service._register_popup(self, is_main=True)
         
-        # Recalculate all actions before loading to ensure consistency
-        self._recalculate_all_actions()
+        # Don't recalculate on open - only recalculate when entries are modified
+        # This prevents actions from being incorrectly changed when just viewing entries
+        # Recalculation happens automatically when entries are added or deleted
         self._load_entries_for_date()
         self._build_ui()
         
