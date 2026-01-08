@@ -6,44 +6,25 @@ from kivy.uix.button import Button
 
 
 class DebouncedButton(Button):
-    """Button that prevents double-clicks and rapid clicking (debouncing)"""
+    """
+    Button that prevents rapid double-clicks.
+    
+    Only debounces completed click actions (on_release), not individual touch events.
+    This ensures touch_down/touch_up pairing works correctly.
+    """
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._last_touch_time = 0
-        self._last_release_time = 0
-        self._debounce_interval = 0.5  # 500ms debounce for both touch and release
-        self._touch_id = None  # Track which touch is valid
+        self._last_action_time = 0
+        self._debounce_interval = 0.5  # 500ms between completed clicks
     
-    def on_touch_down(self, touch):
-        if not self.collide_point(*touch.pos):
-            return super().on_touch_down(touch)
-        
-        # Check for rapid successive touches (debounce)
+    def on_release(self):
+        """Debounce at the action level, not the touch level"""
         current_time = time.time()
-        if current_time - self._last_touch_time < self._debounce_interval:
-            return True  # Consume the event without action
         
-        self._last_touch_time = current_time
-        self._touch_id = touch.uid  # Store touch ID to validate release
+        # Block rapid successive clicks
+        if current_time - self._last_action_time < self._debounce_interval:
+            return  # Ignore this click, don't call super
         
-        return super().on_touch_down(touch)
-    
-    def on_touch_up(self, touch):
-        if not self.collide_point(*touch.pos):
-            return super().on_touch_up(touch)
-        
-        # Only process release if it matches the stored touch ID
-        if self._touch_id != touch.uid:
-            return True  # Ignore release from different touch
-        
-        # Check for rapid successive releases (debounce)
-        current_time = time.time()
-        if current_time - self._last_release_time < self._debounce_interval:
-            self._touch_id = None  # Clear touch ID
-            return True  # Consume the event without action
-        
-        self._last_release_time = current_time
-        self._touch_id = None  # Clear touch ID after valid release
-        
-        return super().on_touch_up(touch)
+        self._last_action_time = current_time
+        return super().on_release()
