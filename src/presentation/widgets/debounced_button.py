@@ -1,51 +1,41 @@
 """
-Debounced button widget to prevent double-clicks and rapid clicking.
+Debounced button widget to prevent user double-clicks.
+
+Note: Hardware-level duplicate events are already handled by GlobalInputFilter.
+This widget only prevents intentional user double-clicks (rapid successive clicks).
 """
 import time
 from kivy.uix.button import Button
 
 
 class DebouncedButton(Button):
-    """Button that prevents double-clicks and rapid clicking (debouncing)"""
+    """
+    Button that prevents user double-clicks.
+    
+    Hardware duplicates are handled by GlobalInputFilter (0.15s, 8px threshold).
+    This widget prevents intentional user double-clicks with a longer threshold (0.3s).
+    """
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._last_release_time = 0
-        self._debounce_interval = 0.3  # 300ms debounce - only prevent rapid successive releases
-        self._active_touch = None  # Track the current active touch
+        self._debounce_interval = 0.3  # 300ms - prevents user double-clicks (longer than hardware filter)
     
     def on_touch_down(self, touch):
-        """Handle touch down - always allow, but track the touch"""
-        if not self.collide_point(*touch.pos):
-            return super().on_touch_down(touch)
-        
-        # Always allow touch_down to proceed - button needs to enter pressed state
-        # Store this touch as the active one
-        self._active_touch = touch.uid
-        
-        # Allow the touch to proceed normally - button will enter pressed state
+        """Handle touch down - always allow to proceed"""
+        # Always allow touch_down - GlobalInputFilter handles hardware duplicates
         return super().on_touch_down(touch)
     
     def on_touch_up(self, touch):
-        """Handle touch up - debounce rapid successive releases"""
+        """Handle touch up - debounce rapid successive user clicks"""
         if not self.collide_point(*touch.pos):
-            # If touch moved outside button, clean up
-            if self._active_touch == touch.uid:
-                self._active_touch = None
             return super().on_touch_up(touch)
         
-        # Only process release if it matches the stored touch ID
-        # This ensures we only process releases from touches that started on this button
-        if self._active_touch != touch.uid:
-            return True  # Ignore release from touch that didn't start on this button
-        
-        # Clear the active touch
-        self._active_touch = None
-        
-        # Check for rapid successive releases (debounce)
+        # Check for rapid successive releases (user double-clicks)
+        # GlobalInputFilter already handles hardware duplicates, so this is for intentional clicks
         current_time = time.monotonic()
         if current_time - self._last_release_time < self._debounce_interval:
-            return True  # Consume the event - too soon after last release
+            return True  # Consume the event - too soon after last release (user double-click)
         
         # Update last release time
         self._last_release_time = current_time

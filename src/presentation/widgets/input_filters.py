@@ -6,12 +6,17 @@ import time
 
 class GlobalInputFilter:
     """
-    Brute-force, app-wide input de-duplicator for all touch events
-    (buttons, VKeyboard keys, etc.). Any touch that lands within
-    a small distance/time window of the previous touch is swallowed.
+    App-wide input de-duplicator for hardware-level duplicate touch events.
     
-    IMPORTANT: Only filters duplicates of the SAME event type (e.g., two touch_down
-    events close together), NOT touch_up events that correspond to touch_down events.
+    Purpose: Catches duplicate events from the touchscreen hardware (e.g., touchscreen
+    sending the same event twice due to driver issues or hardware quirks).
+    
+    Threshold: 0.15s and 8px - very short because hardware duplicates happen almost instantly.
+    
+    IMPORTANT: 
+    - Only filters duplicates of the SAME event type (e.g., two touch_down events close together)
+    - Does NOT filter touch_up events that correspond to touch_down events (normal clicks)
+    - User double-clicks are handled by DebouncedButton (0.3s threshold)
     """
     
     def __init__(self, window, time_threshold=0.15, distance_threshold=8):
