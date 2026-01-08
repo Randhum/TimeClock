@@ -10,44 +10,45 @@ class DebouncedButton(Button):
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._last_click_time = 0
-        self._debounce_interval = 0.3  # 300ms debounce between completed clicks
-        self._active_touches = {}  # Track active touches: {touch.uid: touch_down_time}
+        self._last_release_time = 0
+        self._debounce_interval = 0.3  # 300ms debounce - only prevent rapid successive releases
+        self._active_touch = None  # Track the current active touch
     
     def on_touch_down(self, touch):
+        """Handle touch down - always allow, but track the touch"""
         if not self.collide_point(*touch.pos):
             return super().on_touch_down(touch)
         
-        # Check for rapid successive clicks (debounce based on last click completion)
-        current_time = time.monotonic()
-        if current_time - self._last_click_time < self._debounce_interval:
-            return True  # Consume the event - too soon after last click
-        
-        # Store this touch and its start time
-        self._active_touches[touch.uid] = current_time
+        # Always allow touch_down to proceed - button needs to enter pressed state
+        # Store this touch as the active one
+        self._active_touch = touch.uid
         
         # Allow the touch to proceed normally - button will enter pressed state
         return super().on_touch_down(touch)
     
     def on_touch_up(self, touch):
+        """Handle touch up - debounce rapid successive releases"""
         if not self.collide_point(*touch.pos):
             # If touch moved outside button, clean up
-            if touch.uid in self._active_touches:
-                del self._active_touches[touch.uid]
+            if self._active_touch == touch.uid:
+                self._active_touch = None
             return super().on_touch_up(touch)
         
-        # Only process release if it matches a stored touch ID
+        # Only process release if it matches the stored touch ID
         # This ensures we only process releases from touches that started on this button
-        if touch.uid not in self._active_touches:
+        if self._active_touch != touch.uid:
             return True  # Ignore release from touch that didn't start on this button
         
-        # Remove the touch from active touches
-        del self._active_touches[touch.uid]
+        # Clear the active touch
+        self._active_touch = None
         
-        # Update last click time to prevent rapid successive clicks
-        # This debounces the NEXT click, not the current one
+        # Check for rapid successive releases (debounce)
         current_time = time.monotonic()
-        self._last_click_time = current_time
+        if current_time - self._last_release_time < self._debounce_interval:
+            return True  # Consume the event - too soon after last release
+        
+        # Update last release time
+        self._last_release_time = current_time
         
         # Allow the release to proceed normally - this will trigger on_release
         return super().on_touch_up(touch)
