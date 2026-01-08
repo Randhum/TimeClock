@@ -6,10 +6,12 @@ import datetime
 import logging
 import os
 import sys
+import time
+import threading
 
 from peewee import (
     Model, CharField, BooleanField, DateTimeField, DateField, IntegerField, TextField,
-    ForeignKeyField, IntegrityError
+    ForeignKeyField, IntegrityError, OperationalError
 )
 
 logger = logging.getLogger(__name__)
@@ -60,6 +62,18 @@ def _get_database():
 
 # Initialize database connection
 db = _get_database()
+
+# Employee-level locks to prevent concurrent modifications
+_employee_locks = {}
+_locks_lock = threading.Lock()
+
+
+def _get_employee_lock(employee_id):
+    """Get or create a lock for a specific employee"""
+    with _locks_lock:
+        if employee_id not in _employee_locks:
+            _employee_locks[employee_id] = threading.Lock()
+        return _employee_locks[employee_id]
 
 
 class BaseModel(Model):
@@ -156,15 +170,49 @@ def is_encrypted() -> bool:
         return False
 
 
-def ensure_db_connection():
-    """Ensure database connection is open"""
-    if db.is_closed():
+def ensure_db_connection(max_retries=3, initial_delay=0.1):
+    """
+    Ensure database connection is open with retry logic for transient errors.
+    
+    Args:
+        max_retries: Maximum number of retry attempts (default: 3)
+        initial_delay: Initial delay in seconds before first retry (default: 0.1)
+        
+    Raises:
+        Exception: If connection fails after all retries
+    """
+    if not db.is_closed():
+        return  # Already connected
+    
+    last_exception = None
+    for attempt in range(max_retries):
         try:
             db.connect(reuse_if_open=True)
             logger.debug("Database connection opened")
-        except Exception as e:
-            logger.error(f"Failed to open database connection: {e}")
-            raise
+            return
+        except (OperationalError, Exception) as e:
+            last_exception = e
+            error_msg = str(e).lower()
+            
+            # Check if this is a transient error that we should retry
+            is_transient = any(keyword in error_msg for keyword in [
+                'locked', 'busy', 'database is locked', 'unable to open database',
+                'timeout', 'connection', 'temporary'
+            ])
+            
+            if is_transient and attempt < max_retries - 1:
+                # Exponential backoff: delay increases with each retry
+                delay = initial_delay * (2 ** attempt)
+                logger.warning(f"Database connection failed (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {delay}s...")
+                time.sleep(delay)
+            else:
+                # Not a transient error or out of retries
+                if attempt < max_retries - 1:
+                    logger.warning(f"Database connection failed (attempt {attempt + 1}/{max_retries}): {e}. Retrying...")
+                    time.sleep(initial_delay * (2 ** attempt))
+                else:
+                    logger.error(f"Failed to open database connection after {max_retries} attempts: {e}")
+                    raise
 
 
 def _ensure_timeentry_active_column():
@@ -191,11 +239,22 @@ def _ensure_lgav_day_entry_table():
 
 
 def soft_delete_time_entries(entry_ids):
-    """Soft-delete specific time entries (set active=False)"""
+    """Soft-delete specific time entries (set active=False) with transaction and error handling"""
     if not entry_ids:
         return 0
     ensure_db_connection()
-    return TimeEntry.update(active=False).where(TimeEntry.id.in_(entry_ids)).execute()
+    try:
+        with db.atomic():
+            result = TimeEntry.update(active=False).where(TimeEntry.id.in_(entry_ids)).execute()
+            db.commit()  # Explicit commit
+            return result
+    except Exception as e:
+        logger.error(f"Failed to soft-delete time entries: {e}")
+        try:
+            db.rollback()
+        except:
+            pass
+        raise
 
 
 def initialize_db():
@@ -282,39 +341,128 @@ def create_employee(name, rfid_tag, is_admin=False):
                 rfid_tag=rfid_tag.strip().upper(),
                 is_admin=bool(is_admin)
             )
+            db.commit()  # Explicit commit to ensure data is persisted
             logger.info(f"Employee created successfully: {employee.name} ({employee.rfid_tag})")
             return employee
     except IntegrityError as e:
         logger.error(f"Failed to create employee (integrity error): {e}")
+        db.rollback()
         raise
     except Exception as e:
         logger.error(f"Failed to create employee: {e}")
+        try:
+            db.rollback()
+        except:
+            pass
         raise
 
 
-def create_time_entry(employee, action):
-    """Create a time entry with validation and ensure data is committed"""
+def create_time_entry(employee, action, timestamp=None):
+    """
+    Create a time entry with validation and ensure data is committed.
+    
+    Args:
+        employee: Employee object
+        action: 'in' or 'out'
+        timestamp: Optional datetime (defaults to now)
+        
+    Returns:
+        Created TimeEntry object
+    """
     if action not in ('in', 'out'):
         raise ValueError(f"Invalid action: {action}. Must be 'in' or 'out'")
 
     if not employee.active:
         raise ValueError("Cannot create time entry for inactive employee")
+    
+    if timestamp is None:
+        timestamp = datetime.datetime.now()
+    else:
+        # Validate timestamp is reasonable
+        now = datetime.datetime.now()
+        max_future = now + datetime.timedelta(days=1)  # Allow 1 day in future
+        min_past = now - datetime.timedelta(days=365)  # Allow 1 year in past
+        
+        if timestamp > max_future:
+            raise ValueError(f"Timestamp cannot be more than 1 day in the future. Got: {timestamp}")
+        if timestamp < min_past:
+            raise ValueError(f"Timestamp cannot be more than 1 year in the past. Got: {timestamp}")
 
     ensure_db_connection()
 
     try:
         with db.atomic():
-            timestamp = datetime.datetime.now()
             entry = TimeEntry.create(
                 employee=employee,
                 action=action,
                 timestamp=timestamp
             )
+            db.commit()  # Explicit commit to ensure data is persisted
             logger.info(f"Time entry created: {employee.name} - {action.upper()} @ {timestamp}")
             return entry
     except Exception as e:
         logger.error(f"Failed to create time entry: {e}")
+        try:
+            db.rollback()
+        except:
+            pass
         raise
+
+
+def create_time_entry_atomic(employee):
+    """
+    Atomically determine action and create time entry to prevent race conditions.
+    This ensures that action determination and entry creation happen in a single transaction.
+    Uses employee-level locking to prevent concurrent modifications.
+    
+    Args:
+        employee: Employee to clock in/out
+        
+    Returns:
+        Tuple of (entry, action) where entry is the created TimeEntry and action is 'in' or 'out'
+        
+    Raises:
+        ValueError: If employee is inactive or invalid
+        DatabaseError: If database operation fails
+    """
+    if not employee.active:
+        raise ValueError("Cannot create time entry for inactive employee")
+    
+    # Acquire employee-specific lock to prevent concurrent modifications
+    employee_lock = _get_employee_lock(employee.id)
+    
+    with employee_lock:
+        ensure_db_connection()
+        
+        try:
+            with db.atomic():
+                # Get last entry within transaction to prevent race conditions
+                last_entry = TimeEntry.get_last_for_employee(employee)
+                
+                # Determine action based on last entry
+                if not last_entry or last_entry.action == 'out':
+                    action = 'in'
+                else:
+                    action = 'out'
+                
+                # Create entry immediately within same transaction
+                timestamp = datetime.datetime.now()
+                # Timestamp validation is implicit (current time is always valid)
+                entry = TimeEntry.create(
+                    employee=employee,
+                    action=action,
+                    timestamp=timestamp
+                )
+                db.commit()  # Explicit commit to ensure data is persisted
+                logger.info(f"Time entry created atomically: {employee.name} - {action.upper()} @ {timestamp}")
+                return entry, action
+        except Exception as e:
+            logger.error(f"Failed to create time entry atomically: {e}")
+            try:
+                db.rollback()
+            except:
+                pass
+            raise
 
 
 def get_time_entries_for_export():
@@ -365,6 +513,7 @@ def create_lgav_day_entry(employee, date, upper_code=None, lower_code=None,
                 entry.notes = notes
                 entry.updated_at = datetime.datetime.now()
                 entry.save()
+                db.commit()  # Explicit commit
                 logger.info(f"Updated L-GAV entry for {employee.name} on {date}")
                 return entry
             except LgavDayEntry.DoesNotExist:
@@ -377,13 +526,22 @@ def create_lgav_day_entry(employee, date, upper_code=None, lower_code=None,
                     total_seconds=total_seconds,
                     notes=notes
                 )
+                db.commit()  # Explicit commit
                 logger.info(f"Created L-GAV entry for {employee.name} on {date}")
                 return entry
     except IntegrityError as e:
         logger.error(f"Failed to create L-GAV entry (integrity error): {e}")
+        try:
+            db.rollback()
+        except:
+            pass
         raise
     except Exception as e:
         logger.error(f"Failed to create L-GAV entry: {e}")
+        try:
+            db.rollback()
+        except:
+            pass
         raise
 
 

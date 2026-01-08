@@ -77,6 +77,20 @@ from .presentation.screens import (
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG)
+
+# Suppress non-critical Kivy Cutbuffer warnings (clipboard not needed for kiosk app)
+class CutbufferFilter(logging.Filter):
+    """Filter to suppress Kivy Cutbuffer warnings"""
+    def filter(self, record):
+        # Suppress Cutbuffer and xclip warnings - not needed for kiosk application
+        if 'Cutbuffer' in record.getMessage() or 'xclip' in record.getMessage():
+            return False
+        return True
+
+# Apply filter to Kivy logger
+kivy_logger = logging.getLogger('kivy')
+kivy_logger.addFilter(CutbufferFilter())
+
 logger = logging.getLogger(__name__)
 
 # Hide cursor for touch screen usage
