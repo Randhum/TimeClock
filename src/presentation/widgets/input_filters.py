@@ -11,9 +11,9 @@ class GlobalInputFilter:
     a small distance/time window of the previous touch is swallowed.
     """
     
-    def __init__(self, window, time_threshold=0.3, distance_threshold=8):
+    def __init__(self, window, time_threshold=0.15, distance_threshold=8):
         self.window = window
-        self.time_threshold = time_threshold
+        self.time_threshold = time_threshold  # Reduced from 0.3 to 0.15 to be less aggressive
         self.distance_threshold = distance_threshold
         self._last_event = None
 

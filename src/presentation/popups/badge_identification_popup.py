@@ -71,7 +71,7 @@ class BadgeIdentificationPopup(Popup):
         layout.add_widget(cancel_btn)
         
         self.content = layout
-        
+    
         # Register with popup service for proper management
         app = App.get_running_app()
         if app and hasattr(app, 'popup_service'):

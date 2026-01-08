@@ -134,7 +134,7 @@ class PopupService:
         # Only open if not already open
         if not (hasattr(popup, 'is_open') and popup.is_open):
             popup.open()
-        Clock.schedule_once(lambda dt: self._safe_dismiss(popup), duration)
+            Clock.schedule_once(lambda dt: self._safe_dismiss(popup), duration)
     
     def _close_simple_popups(self):
         """Close simple notification popups (thread-safe)"""
@@ -178,7 +178,7 @@ class PopupService:
         # Only open if not already open
         if not (hasattr(popup, 'is_open') and popup.is_open):
             popup.open()
-        Clock.schedule_once(lambda dt: self._safe_dismiss(popup), duration)
+            Clock.schedule_once(lambda dt: self._safe_dismiss(popup), duration)
     
     def show_success(self, title: str, message: str, duration: float = 3.0):
         """
@@ -204,7 +204,7 @@ class PopupService:
         # Only open if not already open
         if not (hasattr(popup, 'is_open') and popup.is_open):
             popup.open()
-        Clock.schedule_once(lambda dt: self._safe_dismiss(popup), duration)
+            Clock.schedule_once(lambda dt: self._safe_dismiss(popup), duration)
     
     def show_greeter(self, employee, action: str):
         """
