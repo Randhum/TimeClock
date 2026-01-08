@@ -6,40 +6,63 @@ import time
 
 class GlobalInputFilter:
     """
-    Brute-force, app-wide input de-duplicator for all touch events
-    (buttons, VKeyboard keys, etc.). Any touch that lands within
-    a small distance/time window of the previous touch is swallowed.
+    App-wide input de-duplicator for hardware-level duplicate touch events.
+    
+    Catches duplicate events from the touchscreen hardware (e.g., touchscreen
+    sending the same event twice due to driver issues or hardware quirks).
+    
+    IMPORTANT: Tracks events per TYPE (down, move, up) separately.
+    A touch_up is NOT considered a duplicate of a touch_down - they are different event types.
     """
     
     def __init__(self, window, time_threshold=0.3, distance_threshold=8):
         self.window = window
         self.time_threshold = time_threshold
         self.distance_threshold = distance_threshold
-        self._last_event = None
+        # Track last event PER TYPE to avoid swallowing touch_up as duplicate of touch_down
+        self._last_events = {
+            'down': None,
+            'move': None,
+            'up': None
+        }
 
     def install(self):
         """Install the filter on the window"""
         # Bind to all touch events; returning True stops propagation
-        self.window.bind(on_touch_down=self._filter_touch)
-        self.window.bind(on_touch_move=self._filter_touch)
-        self.window.bind(on_touch_up=self._filter_touch)
+        self.window.bind(on_touch_down=self._filter_touch_down)
+        self.window.bind(on_touch_move=self._filter_touch_move)
+        self.window.bind(on_touch_up=self._filter_touch_up)
 
-    def _filter_touch(self, window, touch):
-        """Filter touch events to prevent duplicates"""
+    def _filter_touch(self, window, touch, event_type):
+        """Filter touch events to prevent duplicates of the SAME type"""
         now = time.monotonic()
         dev = getattr(touch, 'device', '')
         pos = touch.pos if hasattr(touch, 'pos') else (0, 0)
 
-        if self._last_event:
-            dt = now - self._last_event['time']
-            dx = abs(pos[0] - self._last_event['pos'][0])
-            dy = abs(pos[1] - self._last_event['pos'][1])
-            same_dev = dev == self._last_event['dev']
+        last_event = self._last_events.get(event_type)
+        
+        if last_event:
+            dt = now - last_event['time']
+            dx = abs(pos[0] - last_event['pos'][0])
+            dy = abs(pos[1] - last_event['pos'][1])
+            same_dev = dev == last_event['dev']
             if same_dev and dt < self.time_threshold and dx < self.distance_threshold and dy < self.distance_threshold:
-                return True  # Swallow duplicate
+                return True  # Swallow duplicate of same type
 
-        self._last_event = {'time': now, 'pos': pos, 'dev': dev}
+        self._last_events[event_type] = {'time': now, 'pos': pos, 'dev': dev}
         return False
+
+    def _filter_touch_down(self, window, touch):
+        """Filter touch down events - only compare to previous touch_down"""
+        return self._filter_touch(window, touch, 'down')
+
+    def _filter_touch_move(self, window, touch):
+        """Filter touch move events - only compare to previous touch_move"""
+        return self._filter_touch(window, touch, 'move')
+
+    def _filter_touch_up(self, window, touch):
+        """Filter touch up events - only compare to previous touch_up"""
+        return self._filter_touch(window, touch, 'up')
 
 
 class GlobalKeyFilter:
