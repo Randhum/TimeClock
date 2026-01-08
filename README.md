@@ -30,6 +30,7 @@ On first launch, you'll be prompted to register an **administrator**. This step 
 - 🔒 **Role-Based Access** - Admin and Employee roles with appropriate permissions
 - 🤖 **Screensaver** - Matrix-style screensaver activates after 60s idle
 - 💬 **Greeter Messages** - Customizable welcome/goodbye messages
+- 🛡️ **Robust Data Integrity** - Atomic transactions, employee-level locking, and comprehensive error handling
 
 ---
 
@@ -568,6 +569,41 @@ Debug logging is enabled by default:
 ```python
 logging.basicConfig(level=logging.DEBUG)
 ```
+
+---
+
+## Reliability & Data Integrity
+
+The application includes comprehensive reliability features to ensure data integrity and prevent corruption:
+
+### Atomic Operations
+- **Clock Operations**: Action determination and entry creation happen atomically in a single transaction, preventing race conditions
+- **Manual Entries**: All manual entry operations use transactions with proper rollback on errors
+- **Entry Deletions**: Soft-delete operations are wrapped in transactions with explicit commits
+
+### Employee-Level Locking
+- **Concurrent Modification Protection**: Each employee has a dedicated lock to prevent simultaneous modifications to their time entries
+- **Thread-Safe Operations**: All database operations for the same employee are serialized to prevent data corruption
+
+### Action Validation
+- **Real-Time Validation**: Actions are validated against current database state at save time, not just at UI time
+- **Smart Recalculation**: Action recalculation only occurs when logical errors are detected (e.g., two consecutive 'in' actions)
+- **Preservation of Valid Data**: Existing valid action patterns are preserved during recalculation
+
+### Database Error Handling
+- **Retry Logic**: Automatic retry with exponential backoff for transient database errors (locked, busy, timeout)
+- **Connection Recovery**: Robust connection management with automatic reconnection on failures
+- **Transaction Rollback**: All operations include proper error handling with transaction rollback on failures
+
+### Data Validation
+- **Timestamp Validation**: Prevents entries with unreasonable dates (more than 1 day in future or 1 year in past)
+- **Action Validation**: Ensures all actions are valid ('in' or 'out') before database operations
+- **Employee Validation**: Verifies employee is active before allowing time entry creation
+
+### Error Recovery
+- **Graceful Degradation**: Operations continue even if non-critical steps fail (e.g., recalculation)
+- **Comprehensive Logging**: All errors are logged with context for debugging
+- **User Feedback**: Clear error messages inform users of issues without exposing technical details
 
 ---
 

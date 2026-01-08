@@ -5,7 +5,7 @@ import logging
 from typing import Optional
 from dataclasses import dataclass
 
-from ..data.database import TimeEntry, create_time_entry
+from ..data.database import TimeEntry, create_time_entry, create_time_entry_atomic
 from ..utils.errors import DatabaseError, InvalidActionError
 
 logger = logging.getLogger(__name__)
@@ -40,6 +40,7 @@ class ClockService:
     def clock_in_out(self, employee) -> ClockResult:
         """
         Perform clock action for employee.
+        Uses atomic operation to prevent race conditions between action determination and entry creation.
         
         Args:
             employee: Employee to clock in/out
@@ -48,14 +49,9 @@ class ClockService:
             ClockResult with action details
         """
         try:
-            # Find last entry
-            last_entry = TimeEntry.get_last_for_employee(employee)
-            
-            # Determine action
-            action = self._determine_action(last_entry)
-            
-            # Create time entry
-            entry = create_time_entry(employee, action)
+            # Atomically determine action and create entry to prevent race conditions
+            # This ensures no other clock operation can interfere between determination and creation
+            entry, action = create_time_entry_atomic(employee)
             
             logger.info(f"Clocked {action.upper()} - {employee.name}")
             
