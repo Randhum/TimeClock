@@ -120,7 +120,6 @@ class GreeterPopup(Popup):
     
     def _get_greeting_filename(self, action, shift, language):
         """Build filename based on action, shift, and language"""
-        import os
         action_part = 'in' if action == 'in' else 'out'
         # Get path relative to src directory
         base_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -150,7 +149,6 @@ class GreeterPopup(Popup):
             logger.warning(f"Error loading greeting from {filename}: {e}")
         
         # Fallback to general greeting files if specific shift file not found
-        import os
         base_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
         fallback_file = os.path.join(base_path, 'data', 'greetings', 'greetings_in.txt' if 'in' in filename else 'greetings_out.txt')
         try:
