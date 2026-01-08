@@ -212,7 +212,7 @@ def ensure_db_connection(max_retries=3, initial_delay=0.1):
                     time.sleep(initial_delay * (2 ** attempt))
                 else:
                     logger.error(f"Failed to open database connection after {max_retries} attempts: {e}")
-                    raise
+            raise
 
 
 def _ensure_timeentry_active_column():
@@ -462,7 +462,7 @@ def create_time_entry_atomic(employee):
                 db.rollback()
             except:
                 pass
-            raise
+        raise
 
 
 def get_time_entries_for_export():

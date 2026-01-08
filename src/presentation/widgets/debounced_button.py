@@ -28,6 +28,7 @@ class DebouncedButton(Button):
     
     def on_touch_up(self, touch):
         """Handle touch up - debounce rapid successive user clicks"""
+        """Handle touch up - debounce rapid successive user clicks"""
         if not self.collide_point(*touch.pos):
             return super().on_touch_up(touch)
         
@@ -42,6 +43,7 @@ class DebouncedButton(Button):
         if current_time - self._last_release_time < self._debounce_interval:
             return True  # Block double-click
         
+        # Update last release time
         self._last_release_time = current_time
         return super().on_touch_up(touch)
 

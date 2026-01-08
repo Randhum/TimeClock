@@ -541,6 +541,41 @@ python scripts/change_employee_name.py --all
 
 **Note:** If the database is encrypted, ensure `TIMECLOCK_ENV_KEY` environment variable is set before running the script.
 
+### Insert Clock Entry
+
+The `scripts/insert_entry.py` script allows you to insert a time-clock entry for an employee with auto-determined action (in/out).
+
+**Usage:**
+
+```bash
+# Insert entry with current time
+python scripts/insert_entry.py --employee "John Doe"
+
+# Insert entry with specific timestamp
+python scripts/insert_entry.py --employee "John Doe" --time "2024-01-15 14:30:00"
+
+# Insert entry using RFID tag
+python scripts/insert_entry.py --tag "ABCD1234" --time "2024-01-15 14:30:00"
+
+# Insert entry for today at specific time
+python scripts/insert_entry.py --employee "John Doe" --time "14:30:00"
+```
+
+**Features:**
+- Automatically determines action (in/out) based on last entry for the employee
+- Supports employee lookup by name (partial match) or RFID tag
+- Flexible timestamp formats: `YYYY-MM-DD HH:MM:SS`, `YYYY-MM-DD`, `DD.MM.YYYY HH:MM:SS`, or just time `HH:MM:SS` (uses today's date)
+- Uses atomic operations to prevent race conditions
+- Validates timestamp (max 1 day in future, 1 year in past)
+- Shows last entry and expected action before creating
+
+**Output:**
+- Displays employee information
+- Shows last entry (if any) and expected action
+- Confirms successful entry creation with details
+
+**Note:** If the database is encrypted, ensure `TIMECLOCK_ENV_KEY` environment variable is set before running the script.
+
 ### Database Migration
 
 The `scripts/migrate_db.py` script migrates an unencrypted database to SQLCipher encrypted format. See the script's help for usage:

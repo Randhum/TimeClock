@@ -137,9 +137,16 @@ class PopupService:
         )
         self._register_popup(popup, is_main=False)
         
+<<<<<<< HEAD
         # Open the popup
         popup.open()
         Clock.schedule_once(lambda dt: self._safe_dismiss(popup), duration)
+=======
+        # Only open if not already open
+        if not (hasattr(popup, 'is_open') and popup.is_open):
+            popup.open()
+            Clock.schedule_once(lambda dt: self._safe_dismiss(popup), duration)
+>>>>>>> aeccf2f1af03d87796fe82e96c98c57e2734572b
     
     def _close_simple_popups(self):
         """Close simple notification popups (thread-safe)"""
@@ -187,9 +194,16 @@ class PopupService:
         )
         self._register_popup(popup, is_main=False)
         
+<<<<<<< HEAD
         # Open the popup
         popup.open()
         Clock.schedule_once(lambda dt: self._safe_dismiss(popup), duration)
+=======
+        # Only open if not already open
+        if not (hasattr(popup, 'is_open') and popup.is_open):
+            popup.open()
+            Clock.schedule_once(lambda dt: self._safe_dismiss(popup), duration)
+>>>>>>> aeccf2f1af03d87796fe82e96c98c57e2734572b
     
     def show_success(self, title: str, message: str, duration: float = 3.0):
         """
@@ -212,9 +226,16 @@ class PopupService:
         )
         self._register_popup(popup, is_main=False)
         
+<<<<<<< HEAD
         # Open the popup
         popup.open()
         Clock.schedule_once(lambda dt: self._safe_dismiss(popup), duration)
+=======
+        # Only open if not already open
+        if not (hasattr(popup, 'is_open') and popup.is_open):
+            popup.open()
+            Clock.schedule_once(lambda dt: self._safe_dismiss(popup), duration)
+>>>>>>> aeccf2f1af03d87796fe82e96c98c57e2734572b
     
     def show_greeter(self, employee, action: str):
         """

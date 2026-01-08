@@ -193,7 +193,7 @@ class EntryEditorPopup(Popup):
                 # First: Soft delete the entry
                 with db.atomic():
                     soft_delete_time_entries([entry.id])
-                logger.info(f"[ENTRY_EDITOR] Deleted entry ID={entry.id}")
+                    logger.info(f"[ENTRY_EDITOR] Deleted entry ID={entry.id}")
                 
                 # Second: Recalculate all actions for all active entries
                 # This is in a separate transaction to ensure delete completes first
@@ -216,7 +216,7 @@ class EntryEditorPopup(Popup):
                 
                 # Use Clock to schedule navigation after popup is fully closed
                 Clock.schedule_once(lambda dt: self._after_delete_cleanup(app), 0.1)
-                    
+                
             except Exception as e:
                 logger.error(f"[ENTRY_EDITOR] Error deleting entry: {e}")
                 App.get_running_app().show_popup("Error", f"Fehler beim Löschen: {str(e)}")
@@ -395,7 +395,7 @@ class EntryEditorPopup(Popup):
             for i in range(1, len(all_entries)):
                 prev_expected = expected_actions[i-1]
                 expected_actions.append('out' if prev_expected == 'in' else 'in')
-            
+                    
             # Now update only entries that are logically incorrect
             updates_made = 0
             try:
