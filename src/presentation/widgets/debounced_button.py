@@ -1,49 +1,49 @@
 """
-Debounced button widget to prevent user double-clicks.
-
-Note: Hardware-level duplicate events are handled by OS/Kivy.
-This widget only prevents intentional user double-clicks (rapid successive clicks).
+Debounced button widget to prevent double-clicks and rapid clicking.
 """
 import time
 from kivy.uix.button import Button
 
 
 class DebouncedButton(Button):
-    """
-    Button that prevents user double-clicks.
-    
-    Only prevents intentional rapid clicks (UX concern).
-    OS/Kivy handles hardware-level duplicate events.
-    """
+    """Button that prevents double-clicks and rapid clicking (debouncing)"""
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._last_release_time = None  # None = no previous release
-        self._debounce_interval = 0.3  # 300ms for user double-clicks
+        self._last_touch_time = 0
+        self._last_release_time = 0
+        self._debounce_interval = 0.5  # 500ms debounce for both touch and release
+        self._touch_id = None  # Track which touch is valid
     
     def on_touch_down(self, touch):
-        """Handle touch down - always allow to proceed"""
-        # Always allow touch_down - no filtering needed
+        if not self.collide_point(*touch.pos):
+            return super().on_touch_down(touch)
+        
+        # Check for rapid successive touches (debounce)
+        current_time = time.time()
+        if current_time - self._last_touch_time < self._debounce_interval:
+            return True  # Consume the event without action
+        
+        self._last_touch_time = current_time
+        self._touch_id = touch.uid  # Store touch ID to validate release
+        
         return super().on_touch_down(touch)
     
     def on_touch_up(self, touch):
-        """Handle touch up - debounce rapid successive user clicks"""
-        """Handle touch up - debounce rapid successive user clicks"""
         if not self.collide_point(*touch.pos):
             return super().on_touch_up(touch)
         
-        current_time = time.monotonic()
+        # Only process release if it matches the stored touch ID
+        if self._touch_id != touch.uid:
+            return True  # Ignore release from different touch
         
-        # First click always works
-        if self._last_release_time is None:
-            self._last_release_time = current_time
-            return super().on_touch_up(touch)
-        
-        # Block rapid double-clicks
+        # Check for rapid successive releases (debounce)
+        current_time = time.time()
         if current_time - self._last_release_time < self._debounce_interval:
-            return True  # Block double-click
+            self._touch_id = None  # Clear touch ID
+            return True  # Consume the event without action
         
-        # Update last release time
         self._last_release_time = current_time
+        self._touch_id = None  # Clear touch ID after valid release
+        
         return super().on_touch_up(touch)
-
