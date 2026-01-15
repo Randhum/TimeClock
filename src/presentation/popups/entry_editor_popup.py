@@ -192,34 +192,34 @@ class EntryEditorPopup(Popup):
                 # Perform delete and recalculation in separate transactions for safety
                 # First: Soft delete the entry
                 with db.atomic():
-                    soft_delete_time_entries([entry.id])
-                    logger.info(f"[ENTRY_EDITOR] Deleted entry ID={entry.id}")
-                
+            soft_delete_time_entries([entry.id])
+            logger.info(f"[ENTRY_EDITOR] Deleted entry ID={entry.id}")
+            
                 # Second: Recalculate all actions for all active entries
                 # This is in a separate transaction to ensure delete completes first
-                self._recalculate_all_actions()
-                
-                # Reload entries
-                self._load_entries_for_date()
-                # Rebuild UI to reflect changes
-                self._rebuild_entries_list()
-                
-                # Call on_deleted callback if provided
-                if self.on_deleted:
-                    self.on_deleted()
-                
-                # Close the editor popup FIRST, then navigate
-                app = App.get_running_app()
-                
+            self._recalculate_all_actions()
+            
+            # Reload entries
+            self._load_entries_for_date()
+            # Rebuild UI to reflect changes
+            self._rebuild_entries_list()
+            
+            # Call on_deleted callback if provided
+            if self.on_deleted:
+                self.on_deleted()
+            
+            # Close the editor popup FIRST, then navigate
+            app = App.get_running_app()
+            
                 # Close popup and schedule navigation after it's fully closed
-                self.dismiss()
+            self.dismiss()
+            
+            # Use Clock to schedule navigation after popup is fully closed
+            Clock.schedule_once(lambda dt: self._after_delete_cleanup(app), 0.1)
                 
-                # Use Clock to schedule navigation after popup is fully closed
-                Clock.schedule_once(lambda dt: self._after_delete_cleanup(app), 0.1)
-                
-            except Exception as e:
-                logger.error(f"[ENTRY_EDITOR] Error deleting entry: {e}")
-                App.get_running_app().show_popup("Error", f"Fehler beim Löschen: {str(e)}")
+        except Exception as e:
+            logger.error(f"[ENTRY_EDITOR] Error deleting entry: {e}")
+            App.get_running_app().show_popup("Error", f"Fehler beim Löschen: {str(e)}")
 
     def _populate_entries_grid(self):
         """Populate the entries grid with current entries"""
@@ -278,8 +278,8 @@ class EntryEditorPopup(Popup):
         employee_lock = _get_employee_lock(self.employee.id)
         
         with employee_lock:
-            try:
-                ensure_db_connection()
+        try:
+            ensure_db_connection()
                 
                 # Re-validate action against current database state before saving
                 # This prevents saving incorrect actions if database changed between UI determination and save
@@ -315,31 +315,31 @@ class EntryEditorPopup(Popup):
                     raise ValueError("Cannot create time entry for inactive employee")
                 
                 # Create entry within transaction
-                with db.atomic():
+            with db.atomic():
                     entry = TimeEntry.create(
-                        employee=self.employee,
-                        timestamp=timestamp,
-                        action=action,
-                        active=True
-                    )
-                logger.info(f"[ENTRY_EDITOR] Added manual entry {action} at {timestamp}")
-                
-                # Recalculate all actions for all active entries before reloading
+                    employee=self.employee,
+                    timestamp=timestamp,
+                    action=action,
+                    active=True
+                )
+            logger.info(f"[ENTRY_EDITOR] Added manual entry {action} at {timestamp}")
+            
+            # Recalculate all actions for all active entries before reloading
                 # This ensures any logical errors are fixed
-                self._recalculate_all_actions()
-                
-                # Reload entries and inform user
-                self._load_entries_for_date()
-                # Rebuild UI to show new entry
-                self._rebuild_entries_list()
-                app = App.get_running_app()
-                app.show_popup("Erfolg", f"Manueller Eintrag ({action.upper()}) gespeichert.")
+            self._recalculate_all_actions()
+            
+            # Reload entries and inform user
+            self._load_entries_for_date()
+            # Rebuild UI to show new entry
+            self._rebuild_entries_list()
+            app = App.get_running_app()
+            app.show_popup("Erfolg", f"Manueller Eintrag ({action.upper()}) gespeichert.")
             except ValueError as e:
                 logger.error(f"[ENTRY_EDITOR] Validation error adding manual entry: {e}")
                 App.get_running_app().show_popup("Error", f"Validierungsfehler: {str(e)}")
-            except Exception as e:
-                logger.error(f"[ENTRY_EDITOR] Error adding manual entry: {e}")
-                App.get_running_app().show_popup("Error", f"Fehler beim Hinzufügen: {str(e)}")
+        except Exception as e:
+            logger.error(f"[ENTRY_EDITOR] Error adding manual entry: {e}")
+            App.get_running_app().show_popup("Error", f"Fehler beim Hinzufügen: {str(e)}")
     
     def _after_delete_cleanup(self, app):
         """Called after popup is dismissed to show success and navigate"""
@@ -388,7 +388,7 @@ class EntryEditorPopup(Popup):
             # Otherwise start with 'in' and alternate
             if first_action == 'out':
                 expected_actions.append('out')
-            else:
+                    else:
                 expected_actions.append('in')
             
             # Alternate from the first action
@@ -402,7 +402,7 @@ class EntryEditorPopup(Popup):
                 with db.atomic():
                     for entry, expected_action in zip(all_entries, expected_actions):
                         # Only update if action is different AND it creates a logical error
-                        if entry.action != expected_action:
+                    if entry.action != expected_action:
                             # Check if current action creates a problem with neighbors
                             entry_idx = all_entries.index(entry)
                             has_problem = False
@@ -421,7 +421,7 @@ class EntryEditorPopup(Popup):
                             
                             # Only update if there's a logical problem
                             if has_problem:
-                                TimeEntry.update(action=expected_action).where(TimeEntry.id == entry.id).execute()
+                        TimeEntry.update(action=expected_action).where(TimeEntry.id == entry.id).execute()
                                 logger.debug(f"[ENTRY_EDITOR] Fixed entry ID={entry.id} action from {entry.action} to {expected_action} (logical error)")
                                 updates_made += 1
                                 # Update the entry object in memory so subsequent reads are correct
