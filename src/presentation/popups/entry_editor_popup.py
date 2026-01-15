@@ -189,37 +189,30 @@ class EntryEditorPopup(Popup):
             try:
                 ensure_db_connection()
                 
-                # Perform delete and recalculation in separate transactions for safety
-                # First: Soft delete the entry
+                # Soft delete the entry
                 with db.atomic():
-            soft_delete_time_entries([entry.id])
-            logger.info(f"[ENTRY_EDITOR] Deleted entry ID={entry.id}")
-            
-                # Second: Recalculate all actions for all active entries
-                # This is in a separate transaction to ensure delete completes first
-            self._recalculate_all_actions()
-            
-            # Reload entries
-            self._load_entries_for_date()
-            # Rebuild UI to reflect changes
-            self._rebuild_entries_list()
-            
-            # Call on_deleted callback if provided
-            if self.on_deleted:
-                self.on_deleted()
-            
-            # Close the editor popup FIRST, then navigate
-            app = App.get_running_app()
-            
-                # Close popup and schedule navigation after it's fully closed
-            self.dismiss()
-            
-            # Use Clock to schedule navigation after popup is fully closed
-            Clock.schedule_once(lambda dt: self._after_delete_cleanup(app), 0.1)
+                    soft_delete_time_entries([entry.id])
+                logger.info(f"[ENTRY_EDITOR] Deleted entry ID={entry.id}")
                 
-        except Exception as e:
-            logger.error(f"[ENTRY_EDITOR] Error deleting entry: {e}")
-            App.get_running_app().show_popup("Error", f"Fehler beim Löschen: {str(e)}")
+                # Recalculate all actions for all active entries
+                self._recalculate_all_actions()
+                
+                # Reload entries
+                self._load_entries_for_date()
+                self._rebuild_entries_list()
+                
+                # Call on_deleted callback if provided
+                if self.on_deleted:
+                    self.on_deleted()
+                
+                # Close the editor popup and navigate
+                app = App.get_running_app()
+                self.dismiss()
+                Clock.schedule_once(lambda dt: self._after_delete_cleanup(app), 0.1)
+                
+            except Exception as e:
+                logger.error(f"[ENTRY_EDITOR] Error deleting entry: {e}")
+                App.get_running_app().show_popup("Error", f"Fehler beim Löschen: {str(e)}")
 
     def _populate_entries_grid(self):
         """Populate the entries grid with current entries"""
@@ -278,11 +271,10 @@ class EntryEditorPopup(Popup):
         employee_lock = _get_employee_lock(self.employee.id)
         
         with employee_lock:
-        try:
-            ensure_db_connection()
+            try:
+                ensure_db_connection()
                 
                 # Re-validate action against current database state before saving
-                # This prevents saving incorrect actions if database changed between UI determination and save
                 last_entry = TimeEntry.get_last_before_timestamp(self.employee, timestamp)
                 
                 # Determine what action should be based on current database state
@@ -291,55 +283,51 @@ class EntryEditorPopup(Popup):
                 else:
                     expected_action = 'out'
                 
-                # If provided action doesn't match expected, use expected action and log warning
+                # If provided action doesn't match expected, use expected action
                 if action != expected_action:
-                    logger.warning(f"[ENTRY_EDITOR] Action mismatch: provided '{action}', expected '{expected_action}' based on current DB state. Using expected action.")
+                    logger.warning(f"[ENTRY_EDITOR] Action mismatch: provided '{action}', expected '{expected_action}'. Using expected.")
                     action = expected_action
                 
-                # Validate timestamp is reasonable (not too far in future or past)
+                # Validate timestamp is reasonable
                 now = datetime.datetime.now()
-                max_future = now + datetime.timedelta(days=1)  # Allow 1 day in future for corrections
-                min_past = now - datetime.timedelta(days=365)  # Allow 1 year in past
+                max_future = now + datetime.timedelta(days=1)
+                min_past = now - datetime.timedelta(days=365)
                 
                 if timestamp > max_future:
-                    raise ValueError(f"Timestamp cannot be more than 1 day in the future. Got: {timestamp}")
+                    raise ValueError(f"Timestamp cannot be more than 1 day in the future.")
                 if timestamp < min_past:
-                    raise ValueError(f"Timestamp cannot be more than 1 year in the past. Got: {timestamp}")
+                    raise ValueError(f"Timestamp cannot be more than 1 year in the past.")
                 
-                # Validate action is valid
                 if action not in ('in', 'out'):
-                    raise ValueError(f"Invalid action: {action}. Must be 'in' or 'out'")
+                    raise ValueError(f"Invalid action: {action}")
                 
-                # Validate employee is still active
                 if not self.employee.active:
                     raise ValueError("Cannot create time entry for inactive employee")
                 
                 # Create entry within transaction
-            with db.atomic():
+                with db.atomic():
                     entry = TimeEntry.create(
-                    employee=self.employee,
-                    timestamp=timestamp,
-                    action=action,
-                    active=True
-                )
-            logger.info(f"[ENTRY_EDITOR] Added manual entry {action} at {timestamp}")
-            
-            # Recalculate all actions for all active entries before reloading
-                # This ensures any logical errors are fixed
-            self._recalculate_all_actions()
-            
-            # Reload entries and inform user
-            self._load_entries_for_date()
-            # Rebuild UI to show new entry
-            self._rebuild_entries_list()
-            app = App.get_running_app()
-            app.show_popup("Erfolg", f"Manueller Eintrag ({action.upper()}) gespeichert.")
+                        employee=self.employee,
+                        timestamp=timestamp,
+                        action=action,
+                        active=True
+                    )
+                logger.info(f"[ENTRY_EDITOR] Added manual entry {action} at {timestamp}")
+                
+                # Recalculate all actions for all active entries
+                self._recalculate_all_actions()
+                
+                # Reload entries and inform user
+                self._load_entries_for_date()
+                self._rebuild_entries_list()
+                app = App.get_running_app()
+                app.show_popup("Erfolg", f"Manueller Eintrag ({action.upper()}) gespeichert.")
             except ValueError as e:
                 logger.error(f"[ENTRY_EDITOR] Validation error adding manual entry: {e}")
                 App.get_running_app().show_popup("Error", f"Validierungsfehler: {str(e)}")
-        except Exception as e:
-            logger.error(f"[ENTRY_EDITOR] Error adding manual entry: {e}")
-            App.get_running_app().show_popup("Error", f"Fehler beim Hinzufügen: {str(e)}")
+            except Exception as e:
+                logger.error(f"[ENTRY_EDITOR] Error adding manual entry: {e}")
+                App.get_running_app().show_popup("Error", f"Fehler beim Hinzufügen: {str(e)}")
     
     def _after_delete_cleanup(self, app):
         """Called after popup is dismissed to show success and navigate"""
@@ -388,21 +376,21 @@ class EntryEditorPopup(Popup):
             # Otherwise start with 'in' and alternate
             if first_action == 'out':
                 expected_actions.append('out')
-                    else:
+            else:
                 expected_actions.append('in')
             
             # Alternate from the first action
             for i in range(1, len(all_entries)):
                 prev_expected = expected_actions[i-1]
                 expected_actions.append('out' if prev_expected == 'in' else 'in')
-                    
+            
             # Now update only entries that are logically incorrect
             updates_made = 0
             try:
                 with db.atomic():
                     for entry, expected_action in zip(all_entries, expected_actions):
                         # Only update if action is different AND it creates a logical error
-                    if entry.action != expected_action:
+                        if entry.action != expected_action:
                             # Check if current action creates a problem with neighbors
                             entry_idx = all_entries.index(entry)
                             has_problem = False
@@ -421,12 +409,11 @@ class EntryEditorPopup(Popup):
                             
                             # Only update if there's a logical problem
                             if has_problem:
-                        TimeEntry.update(action=expected_action).where(TimeEntry.id == entry.id).execute()
-                                logger.debug(f"[ENTRY_EDITOR] Fixed entry ID={entry.id} action from {entry.action} to {expected_action} (logical error)")
+                                TimeEntry.update(action=expected_action).where(TimeEntry.id == entry.id).execute()
+                                logger.debug(f"[ENTRY_EDITOR] Fixed entry ID={entry.id} action from {entry.action} to {expected_action}")
                                 updates_made += 1
-                                # Update the entry object in memory so subsequent reads are correct
                                 entry.action = expected_action
-                    db.commit()  # Explicit commit
+                    db.commit()
                     
                 if updates_made > 0:
                     logger.info(f"[ENTRY_EDITOR] Recalculated actions for {len(all_entries)} entries ({updates_made} fixed)")
