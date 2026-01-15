@@ -51,7 +51,7 @@ from .services.state_service import StateService
 from .services.popup_service import PopupService
 
 # Import extracted widgets (needed for KV file imports)
-from .presentation.widgets import DebouncedButton, FilteredTextInput, GlobalInputFilter, GlobalKeyFilter
+from .presentation.widgets import DebouncedButton, FilteredTextInput
 
 # Import extracted popups
 from .presentation.popups import (
@@ -148,13 +148,6 @@ class TimeClockApp(App):
         # Initialize clock service with RFID and other services
         self.clock_service = ClockService(self.rfid, self.popup_service, self.state_service)
         
-        # Global input de-duplication (touch) to suppress double events everywhere
-        self._input_filter = GlobalInputFilter(Window)
-        self._input_filter.install()
-        # Global keyboard/VKeyboard de-duplication (text + function keys)
-        self._key_filter = GlobalKeyFilter(Window)
-        self._key_filter.install()
-
         # Idle Timer Setup
         Clock.schedule_interval(self.check_idle, 1)
         Window.bind(on_motion=self.on_user_activity)

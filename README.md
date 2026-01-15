@@ -423,7 +423,7 @@ TimeClock/
 │   │   ├── timeclock.kv          # UI layout definitions
 │   │   ├── screens/              # Screen controllers
 │   │   ├── popups/               # Popup components
-│   │   └── widgets/              # Custom widgets
+│   │   └── widgets/              # Custom widgets (DebouncedButton, FilteredTextInput)
 │   │
 │   ├── hardware/                 # Hardware layer
 │   │   ├── rfid.py               # RFID hardware abstraction
