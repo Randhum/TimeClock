@@ -2,6 +2,8 @@
 
 > Vollständige Anleitung für Endbenutzer und Administratoren
 
+**Übersetzungen:** [English](USER_GUIDE.md) | [Italiano (Italian)](USER_GUIDE_IT.md)
+
 ---
 
 ## Inhaltsverzeichnis
@@ -9,8 +11,7 @@
 1. [Erste Schritte](#erste-schritte)
 2. [Für Mitarbeiter](#für-mitarbeiter)
 3. [Für Administratoren](#für-administratoren)
-4. [Häufige Aufgaben](#häufige-aufgaben)
-5. [Fehlerbehebung](#fehlerbehebung)
+4. [Fehlerbehebung](#fehlerbehebung)
 
 ---
 
@@ -38,7 +39,7 @@ Nach der Registrierung kann der Administrator-Badge verwendet werden, um auf all
 1. Stellen Sie sich vor das TimeClock-Terminal
 2. Halten Sie Ihren RFID-Badge in die Nähe des Lesers
 3. Warten Sie auf das grüne LED-Blinken (bestätigt erfolgreichen Scan)
-4. Eine freundliche Begrüßungsnachricht wird angezeigt
+4. Eine freundliche Begrüßungsnachricht wird angezeigt (verschwindet nach 8 Sekunden)
 5. Ihr Status wird auf dem Bildschirm aktualisiert
 
 **Was passiert:**
@@ -49,9 +50,9 @@ Nach der Registrierung kann der Administrator-Badge verwendet werden, um auf all
 ### Anzeige der Tageszusammenfassung
 
 Nach jeder Stempelaktion sehen Sie:
-- Eine freundliche Begrüßungsnachricht (verschwindet nach 3 Sekunden)
+- Eine freundliche Begrüßungsnachricht
 - Eine Statusmeldung, die Ihre Stempelaktion anzeigt (z.B. "Eingestempelt - Ihr Name")
-- Zwei Aktionsschaltflächen, die immer verfügbar sind:
+- Zwei Aktionsschaltflächen:
   - **Heutige Sitzungen anzeigen** - Detaillierte Aufschlüsselung der heutigen Sitzungen
   - **Heutige Sitzungen bearbeiten** - Doppelte Scans entfernen oder Fehler korrigieren
 
@@ -77,9 +78,42 @@ Wenn Sie vergessen haben, ein- oder auszustempeln:
 1. Greifen Sie auf den Eintrags-Editor zu (siehe oben)
 2. Klicken Sie auf **Eintrag hinzufügen**
 3. Wählen Sie das Datum aus (nur letzte 7 Tage)
-4. Wählen Sie **Ein** oder **Aus**
-5. Stellen Sie die Zeit ein
-6. Speichern
+4. Stellen Sie die Zeit ein
+5. Speichern
+
+**Hinweis:** Das System bestimmt automatisch, ob der Eintrag EIN oder AUS sein soll, basierend auf Ihren bestehenden Einträgen für diesen Tag.
+
+### Entfernen doppelter Scans
+
+**Problem:** Sie haben versehentlich den Badge zweimal gescannt, wodurch doppelte Einträge entstanden sind.
+
+**Lösung:**
+1. Klicken Sie auf **Heutige Sitzungen bearbeiten** (innerhalb von 2 Minuten nach dem Stempeln, kein Badge-Scan erforderlich)
+2. Oder scannen Sie Badge → **Heutige Sitzungen bearbeiten** (wenn mehr als 2 Minuten vergangen sind)
+3. Wählen Sie das Datum aus
+4. Aktivieren Sie die doppelten Einträge
+5. Klicken Sie auf **Ausgewählte löschen**
+6. Bestätigen Sie die Löschung
+
+### Korrektur vergessener Ausstempelung
+
+**Problem:** Sie haben gestern vergessen auszustempeln.
+
+**Lösung:**
+1. Scannen Sie Badge → **Heutige Sitzungen bearbeiten**
+2. Wählen Sie das gestrige Datum aus
+3. Klicken Sie auf **Eintrag hinzufügen**
+4. Stellen Sie die Zeit ein (z.B. Ende des Arbeitstages)
+5. Speichern
+
+Das System wird dies automatisch mit dem vorhandenen Einstempel-Eintrag paaren.
+
+### Tipps für Mitarbeiter
+
+- **Einmal scannen:** Das System verhindert schnelle Scans, aber es ist am besten, einmal zu scannen und auf die Bestätigung zu warten
+- **Status überprüfen:** Nach dem Scannen überprüfen Sie, dass die Begrüßungsnachricht die richtige Aktion zeigt (EIN/AUS)
+- **Aktionsschaltflächen nutzen:** Wenn Sie nach dem Stempeln einen Fehler bemerken, verwenden Sie die Aktionsschaltflächen, um Ihre Sitzungen schnell zu bearbeiten
+- **Regelmäßige Überprüfungen:** Überprüfen Sie regelmäßig Ihre Zeiteinträge, um Probleme frühzeitig zu erkennen
 
 ---
 
@@ -176,48 +210,12 @@ Die exportierten Dateien zeigen Arbeitsstunden pro Tag in einem einfachen, klare
 - Wenn keine USB gefunden wird, werden Dateien im Verzeichnis `exports/` gespeichert
 - Sie können mit Umgebungsvariable überschreiben: `export TIME_CLOCK_EXPORT_PATH=/benutzerdefinierter/pfad`
 
----
+### Tipps für Administratoren
 
-## Häufige Aufgaben
-
-### Entfernen doppelter Scans
-
-**Problem:** Mitarbeiter hat versehentlich den Badge zweimal gescannt, wodurch doppelte Einträge entstanden sind.
-
-**Lösung:**
-1. Klicken Sie auf **Heutige Sitzungen bearbeiten** (innerhalb von 2 Minuten nach dem Stempeln, kein Badge-Scan erforderlich)
-2. Oder scannen Sie Badge → **Heutige Sitzungen bearbeiten** (wenn mehr als 2 Minuten vergangen sind)
-3. Wählen Sie das Datum aus
-4. Aktivieren Sie die doppelten Einträge
-5. Klicken Sie auf **Ausgewählte löschen**
-6. Bestätigen Sie die Löschung
-
-Die doppelten Einträge werden aus den Berichten entfernt, aber in der Datenbank für Audit-Zwecke aufbewahrt.
-
-### Korrektur vergessener Ausstempelung
-
-**Problem:** Mitarbeiter hat gestern vergessen auszustempeln.
-
-**Lösung:**
-1. Scannen Sie Badge → **Heutige Sitzungen bearbeiten**
-2. Wählen Sie das gestrige Datum aus
-3. Klicken Sie auf **Eintrag hinzufügen**
-4. Wählen Sie **Aus**
-5. Stellen Sie die Zeit ein (z.B. Ende des Arbeitstages)
-6. Speichern
-
-Das System wird dies automatisch mit dem vorhandenen Einstempel-Eintrag paaren.
-
-### Anzeige der Mitarbeiterstunden
-
-**Für Mitarbeiter:**
-- Zeigen Sie die heutige Zusammenfassung sofort nach dem Stempeln an
-- Oder scannen Sie Badge → **Heutigen Report anzeigen**
-
-**Für Administratoren:**
-- Navigieren Sie zu **Admin → WT Reports**
-- Wählen Sie Mitarbeiter und Datumsbereich
-- Erstellen Sie Bericht
+- **Regelmäßige Backups:** Exportieren Sie die Datenbank regelmäßig für Backup-Zwecke
+- **Berichtsüberwachung:** Generieren Sie wöchentliche Berichte, um Muster oder Probleme zu erkennen
+- **Badge-Verwaltung:** Behalten Sie den Überblick darüber, welche Badges welchen Mitarbeitern zugewiesen sind
+- **Hardware-Test:** Testen Sie regelmäßig die RFID-Leser-Funktionalität mit der Funktion Tag identifizieren
 
 ---
 
@@ -263,43 +261,15 @@ Das System wird dies automatisch mit dem vorhandenen Einstempel-Eintrag paaren.
 - Berühren Sie den Bildschirm oder scannen Sie einen Badge, um ihn zu wecken
 - Der Bildschirm kehrt zum vorherigen Bildschirm zurück
 
-### Doppelte Zeicheneingabe
+### Schaltflächen reagieren nicht
 
-**Symptome:** Beim Tippen erscheint jedes Zeichen zweimal
+**Symptome:** Schaltfläche erscheint gedrückt, löst aber keine Aktion aus
 
 **Lösungen:**
-- Dies wird automatisch von der Anwendung behandelt
-- Wenn es weiterhin auftritt, versuchen Sie langsamer zu tippen
-- Das System filtert automatisch doppelte Tastenanschläge
+- Stellen Sie sicher, dass Sie den Tipp vollständig ausführen (drücken und loslassen)
+- Warten Sie einen Moment zwischen den Tipps (schnelle Doppeltipps werden unterdrückt)
+- Bei Touchscreen: Stellen Sie sicher, dass der Finger vollständig abhebt, bevor Sie erneut tippen
 
 ---
 
-## Tipps & Best Practices
-
-### Für Mitarbeiter
-
-- **Einmal scannen:** Das System verhindert schnelle Scans, aber es ist am besten, einmal zu scannen und auf die Bestätigung zu warten
-- **Status überprüfen:** Nach dem Scannen überprüfen Sie, dass die Begrüßungsnachricht die richtige Aktion zeigt (EIN/AUS)
-- **Aktionsschaltflächen nutzen:** Wenn Sie nach dem Stempeln einen Fehler bemerken, verwenden Sie die Aktionsschaltflächen, um Ihre Sitzungen schnell zu bearbeiten
-- **Regelmäßige Überprüfungen:** Überprüfen Sie regelmäßig Ihre Zeiteinträge, um Probleme frühzeitig zu erkennen
-
-### Für Administratoren
-
-- **Regelmäßige Backups:** Exportieren Sie die Datenbank regelmäßig für Backup-Zwecke
-- **Berichtsüberwachung:** Generieren Sie wöchentliche Berichte, um Muster oder Probleme zu erkennen
-- **Badge-Verwaltung:** Behalten Sie den Überblick darüber, welche Badges welchen Mitarbeitern zugewiesen sind
-- **Hardware-Test:** Testen Sie regelmäßig die RFID-Leser-Funktionalität mit der Funktion Tag identifizieren
-
----
-
-## Support
-
-Bei technischen Problemen oder Fragen:
-- Überprüfen Sie den Fehlerbehebungsabschnitt oben
-- Überprüfen Sie die Anwendungsprotokolle
-- Kontaktieren Sie Ihren Systemadministrator
-
----
-
-*Zuletzt aktualisiert: Dez 2025*
-
+*Zuletzt aktualisiert: Jan 2026*

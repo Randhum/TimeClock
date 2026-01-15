@@ -11,8 +11,7 @@
 1. [Getting Started](#getting-started)
 2. [For Employees](#for-employees)
 3. [For Administrators](#for-administrators)
-4. [Common Tasks](#common-tasks)
-5. [Troubleshooting](#troubleshooting)
+4. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -40,7 +39,7 @@ Once registered, the administrator badge can be used to access all management fu
 1. Stand in front of the TimeClock terminal
 2. Hold your RFID badge near the reader
 3. Wait for the green LED flash (confirms successful scan)
-4. A friendly greeting message will appear
+4. A friendly greeting message will appear (disappears after 8 seconds)
 5. Your status will update on screen
 
 **What happens:**
@@ -51,9 +50,9 @@ Once registered, the administrator badge can be used to access all management fu
 ### Viewing Today's Summary
 
 After each clock action, you'll see:
-- A friendly greeting message (disappears after 3 seconds)
+- A friendly greeting message
 - A status message showing your clock action (e.g., "Clocked IN - Your Name")
-- Two action buttons that are always available:
+- Two action buttons:
   - **View Today's Sessions** - See detailed breakdown of today's sessions
   - **Edit Today's Sessions** - Remove duplicate scans or correct errors
 
@@ -79,9 +78,42 @@ If you forgot to clock in or out:
 1. Access the entry editor (see above)
 2. Click **Add Entry**
 3. Select the date (past 7 days only)
-4. Choose **Clock In** or **Clock Out**
-5. Set the time
-6. Save
+4. Set the time
+5. Save
+
+**Note:** The system automatically determines whether the entry should be IN or OUT based on your existing entries for that day.
+
+### Removing Duplicate Scans
+
+**Problem:** You accidentally scanned your badge twice, creating duplicate entries.
+
+**Solution:**
+1. Click **Edit Today's Sessions** (within 2 minutes of clocking, no badge scan needed)
+2. Or scan badge → **Edit Today's Sessions** (if more than 2 minutes have passed)
+3. Select the date
+4. Check the duplicate entries
+5. Click **Delete Selected**
+6. Confirm deletion
+
+### Correcting Forgotten Clock-Out
+
+**Problem:** You forgot to clock out yesterday.
+
+**Solution:**
+1. Scan badge → **Edit Today's Sessions**
+2. Select yesterday's date
+3. Click **Add Entry**
+4. Set the time (e.g., end of workday)
+5. Save
+
+The system will automatically pair this with the existing clock-in entry.
+
+### Tips for Employees
+
+- **Scan once:** The system debounces rapid scans, but it's best to scan once and wait for confirmation
+- **Check your status:** After scanning, verify the greeting message shows the correct action (IN/OUT)
+- **Use the action buttons:** If you notice an error after clocking, use the action buttons to quickly edit your sessions
+- **Regular checks:** Periodically review your time entries to catch any issues early
 
 ---
 
@@ -178,48 +210,12 @@ The exported files show working hours per day in a simple, clear format:
 - If no USB is found, files save to `exports/` directory
 - You can override with environment variable: `export TIME_CLOCK_EXPORT_PATH=/custom/path`
 
----
+### Tips for Administrators
 
-## Common Tasks
-
-### Removing Duplicate Scans
-
-**Problem:** Employee accidentally scanned badge twice, creating duplicate entries.
-
-**Solution:**
-1. Click **Edit Today's Sessions** (within 2 minutes of clocking, no badge scan needed)
-2. Or scan badge → **Edit Today's Sessions** (if more than 2 minutes have passed)
-3. Select the date
-4. Check the duplicate entries
-5. Click **Delete Selected**
-6. Confirm deletion
-
-The duplicate entries will be removed from reports but preserved in the database for audit purposes.
-
-### Correcting Forgotten Clock-Out
-
-**Problem:** Employee forgot to clock out yesterday.
-
-**Solution:**
-1. Scan badge → **Edit Today's Sessions**
-2. Select yesterday's date
-3. Click **Add Entry**
-4. Choose **Clock Out**
-5. Set the time (e.g., end of workday)
-6. Save
-
-The system will automatically pair this with the existing clock-in entry.
-
-### Viewing Employee Hours
-
-**For employees:**
-- View today's summary immediately after clocking
-- Or scan badge → **View Today's Report**
-
-**For administrators:**
-- Navigate to **Admin → WT Reports**
-- Select employee and date range
-- Generate report
+- **Regular backups:** Export the database regularly for backup purposes
+- **Monitor reports:** Generate weekly reports to spot patterns or issues
+- **Badge management:** Keep track of which badges are assigned to which employees
+- **Test hardware:** Periodically test RFID reader functionality using Identify Tag feature
 
 ---
 
@@ -265,43 +261,15 @@ The system will automatically pair this with the existing clock-in entry.
 - Touch the screen or scan a badge to wake it up
 - Screen will return to the previous screen
 
-### Double Character Input
+### Buttons Not Responding
 
-**Symptoms:** When typing, each character appears twice
+**Symptoms:** Button appears pressed but doesn't trigger action
 
 **Solutions:**
-- This is automatically handled by the application
-- If it persists, try tapping more slowly
-- The system filters duplicate keystrokes automatically
+- Ensure you complete the tap (press and release)
+- Wait a moment between taps (rapid double-taps are debounced)
+- If using touch screen, ensure finger fully lifts before tapping again
 
 ---
 
-## Tips & Best Practices
-
-### For Employees
-
-- **Scan once:** The system debounces rapid scans, but it's best to scan once and wait for confirmation
-- **Check your status:** After scanning, verify the greeting message shows the correct action (IN/OUT)
-- **Use the action buttons:** If you notice an error after clocking, use the action buttons to quickly edit your sessions
-- **Regular checks:** Periodically review your time entries to catch any issues early
-
-### For Administrators
-
-- **Regular backups:** Export the database regularly for backup purposes
-- **Monitor reports:** Generate weekly reports to spot patterns or issues
-- **Badge management:** Keep track of which badges are assigned to which employees
-- **Test hardware:** Periodically test RFID reader functionality using Identify Tag feature
-
----
-
-## Support
-
-For technical issues or questions:
-- Check the troubleshooting section above
-- Review application logs
-- Contact your system administrator
-
----
-
-*Last updated: Dec 2025*
-
+*Last updated: Jan 2026*

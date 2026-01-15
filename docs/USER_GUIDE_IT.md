@@ -2,6 +2,8 @@
 
 > Guida completa per utenti finali e amministratori
 
+**Traduzioni:** [English](USER_GUIDE.md) | [Deutsch (German)](USER_GUIDE_DE.md)
+
 ---
 
 ## Indice
@@ -9,8 +11,7 @@
 1. [Iniziare](#iniziare)
 2. [Per i Dipendenti](#per-i-dipendenti)
 3. [Per gli Amministratori](#per-gli-amministratori)
-4. [Attività Comuni](#attività-comuni)
-5. [Risoluzione Problemi](#risoluzione-problemi)
+4. [Risoluzione Problemi](#risoluzione-problemi)
 
 ---
 
@@ -38,7 +39,7 @@ Una volta registrato, il badge dell'amministratore può essere utilizzato per ac
 1. Mettiti davanti al terminale TimeClock
 2. Avvicina il tuo badge RFID al lettore
 3. Attendi il lampeggio LED verde (conferma scansione riuscita)
-4. Apparirà un messaggio di benvenuto
+4. Apparirà un messaggio di benvenuto (scompare dopo 8 secondi)
 5. Il tuo stato verrà aggiornato sullo schermo
 
 **Cosa succede:**
@@ -49,9 +50,9 @@ Una volta registrato, il badge dell'amministratore può essere utilizzato per ac
 ### Visualizzazione Riepilogo Giornaliero
 
 Dopo ogni azione di timbratura, vedrai:
-- Un messaggio di benvenuto amichevole (scompare dopo 3 secondi)
+- Un messaggio di benvenuto amichevole
 - Un messaggio di stato che mostra la tua azione di timbratura (es. "Timbrato IN - Il Tuo Nome")
-- Due pulsanti di azione sempre disponibili:
+- Due pulsanti di azione:
   - **Visualizza Sessioni Oggi** - Vedi il dettaglio delle sessioni di oggi
   - **Modifica Sessioni Oggi** - Rimuovi scansioni duplicate o correggi errori
 
@@ -77,9 +78,42 @@ Se hai dimenticato di timbrare l'ingresso o l'uscita:
 1. Accedi all'editor delle timbrature (vedi sopra)
 2. Clicca **Aggiungi Timbratura**
 3. Seleziona la data (solo ultimi 7 giorni)
-4. Scegli **Ingresso** o **Uscita**
-5. Imposta l'ora
-6. Salva
+4. Imposta l'ora
+5. Salva
+
+**Nota:** Il sistema determina automaticamente se la timbratura deve essere INGRESSO o USCITA in base alle tue timbrature esistenti per quel giorno.
+
+### Rimozione Scansioni Duplicate
+
+**Problema:** Hai scansionato accidentalmente il badge due volte, creando timbrature duplicate.
+
+**Soluzione:**
+1. Clicca **Modifica Sessioni Oggi** (entro 2 minuti dalla timbratura, nessuna scansione badge necessaria)
+2. Oppure scansiona badge → **Modifica Sessioni Oggi** (se sono passati più di 2 minuti)
+3. Seleziona la data
+4. Seleziona le timbrature duplicate
+5. Clicca **Elimina Selezionate**
+6. Conferma l'eliminazione
+
+### Correzione Uscita Dimenticata
+
+**Problema:** Hai dimenticato di timbrare l'uscita ieri.
+
+**Soluzione:**
+1. Scansiona badge → **Modifica Sessioni Oggi**
+2. Seleziona la data di ieri
+3. Clicca **Aggiungi Timbratura**
+4. Imposta l'ora (es. fine giornata lavorativa)
+5. Salva
+
+Il sistema abbinerà automaticamente questa timbratura con l'ingresso esistente.
+
+### Suggerimenti per i Dipendenti
+
+- **Scansiona una volta:** Il sistema evita le scansioni rapide, ma è meglio scansionare una volta e attendere la conferma
+- **Controlla il tuo stato:** Dopo la scansione, verifica che il messaggio di benvenuto mostri l'azione corretta (INGRESSO/USCITA)
+- **Usa i pulsanti di azione:** Se noti un errore dopo la timbratura, usa i pulsanti di azione per modificare rapidamente le tue sessioni
+- **Controlli regolari:** Rivedi periodicamente le tue timbrature per individuare eventuali problemi in anticipo
 
 ---
 
@@ -176,48 +210,12 @@ I file esportati mostrano le ore di lavoro per giorno in un formato semplice e c
 - Se non viene trovata una USB, i file vengono salvati nella directory `exports/`
 - Puoi sovrascrivere con la variabile d'ambiente: `export TIME_CLOCK_EXPORT_PATH=/percorso/personalizzato`
 
----
+### Suggerimenti per gli Amministratori
 
-## Attività Comuni
-
-### Rimozione Scansioni Duplicate
-
-**Problema:** Il dipendente ha scansionato accidentalmente il badge due volte, creando timbrature duplicate.
-
-**Soluzione:**
-1. Clicca **Modifica Sessioni Oggi** (entro 2 minuti dalla timbratura, nessuna scansione badge necessaria)
-2. Oppure scansiona badge → **Modifica Sessioni Oggi** (se sono passati più di 2 minuti)
-3. Seleziona la data
-4. Seleziona le timbrature duplicate
-5. Clicca **Elimina Selezionate**
-6. Conferma l'eliminazione
-
-Le timbrature duplicate verranno rimosse dai report ma conservate nel database per scopi di audit.
-
-### Correzione Uscita Dimenticata
-
-**Problema:** Il dipendente ha dimenticato di timbrare l'uscita ieri.
-
-**Soluzione:**
-1. Scansiona badge → **Modifica Sessioni Oggi**
-2. Seleziona la data di ieri
-3. Clicca **Aggiungi Timbratura**
-4. Scegli **Uscita**
-5. Imposta l'ora (es. fine giornata lavorativa)
-6. Salva
-
-Il sistema abbinerà automaticamente questa timbratura con l'ingresso esistente.
-
-### Visualizzazione Ore Dipendente
-
-**Per i dipendenti:**
-- Visualizza il riepilogo di oggi immediatamente dopo la timbratura
-- Oppure scansiona badge → **Visualizza Report Oggi**
-
-**Per gli amministratori:**
-- Vai su **Admin → Report WT**
-- Seleziona dipendente e intervallo di date
-- Genera report
+- **Backup regolari:** Esporta il database regolarmente per scopi di backup
+- **Monitoraggio report:** Genera report settimanali per individuare pattern o problemi
+- **Gestione badge:** Tieni traccia di quali badge sono assegnati a quali dipendenti
+- **Test hardware:** Testa periodicamente la funzionalità del lettore RFID utilizzando la funzione Identifica Tag
 
 ---
 
@@ -263,43 +261,15 @@ Il sistema abbinerà automaticamente questa timbratura con l'ingresso esistente.
 - Tocca lo schermo o scansiona un badge per svegliarlo
 - Lo schermo tornerà alla schermata precedente
 
-### Input Doppio Carattere
+### Pulsanti Non Rispondono
 
-**Sintomi:** Quando si digita, ogni carattere appare due volte
+**Sintomi:** Il pulsante appare premuto ma non attiva l'azione
 
 **Soluzioni:**
-- Questo viene gestito automaticamente dall'applicazione
-- Se persiste, prova a toccare più lentamente
-- Il sistema filtra automaticamente i tasti duplicati
+- Assicurati di completare il tocco (premi e rilascia)
+- Attendi un momento tra i tocchi (i doppi tocchi rapidi vengono ignorati)
+- Con touchscreen: assicurati che il dito si sollevi completamente prima di toccare di nuovo
 
 ---
 
-## Suggerimenti e Best Practice
-
-### Per i Dipendenti
-
-- **Scansiona una volta:** Il sistema evita le scansioni rapide, ma è meglio scansionare una volta e attendere la conferma
-- **Controlla il tuo stato:** Dopo la scansione, verifica che il messaggio di benvenuto mostri l'azione corretta (INGRESSO/USCITA)
-- **Usa i pulsanti di azione:** Se noti un errore dopo la timbratura, usa i pulsanti di azione per modificare rapidamente le tue sessioni
-- **Controlli regolari:** Rivedi periodicamente le tue timbrature per individuare eventuali problemi in anticipo
-
-### Per gli Amministratori
-
-- **Backup regolari:** Esporta il database regolarmente per scopi di backup
-- **Monitoraggio report:** Genera report settimanali per individuare pattern o problemi
-- **Gestione badge:** Tieni traccia di quali badge sono assegnati a quali dipendenti
-- **Test hardware:** Testa periodicamente la funzionalità del lettore RFID utilizzando la funzione Identifica Tag
-
----
-
-## Supporto
-
-Per problemi tecnici o domande:
-- Controlla la sezione di risoluzione problemi sopra
-- Rivedi i log dell'applicazione
-- Contatta il tuo amministratore di sistema
-
----
-
-*Ultimo aggiornamento: Dic 2025*
-
+*Ultimo aggiornamento: Gen 2026*
