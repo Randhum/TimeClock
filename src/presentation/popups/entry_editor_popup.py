@@ -10,8 +10,6 @@ from kivy.uix.label import Label
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.button import Button
 from kivy.app import App
-from kivy.clock import Clock
-
 from ..widgets import DebouncedButton
 from .limited_date_picker_popup import LimitedDatePickerPopup
 from .add_entry_popup import AddEntryPopup
@@ -198,7 +196,7 @@ class EntryEditorPopup(Popup):
                 # Recalculate all actions for all active entries
                 self._recalculate_all_actions()
                 
-                # Reload entries
+                # Reload entries and inform user (same pattern as _save_manual_entry)
                 self._load_entries_for_date()
                 self._rebuild_entries_list()
                 
@@ -206,10 +204,8 @@ class EntryEditorPopup(Popup):
                 if self.on_deleted:
                     self.on_deleted()
                 
-                # Close the editor popup and navigate
-                app = App.get_running_app()
-                self.dismiss()
-                Clock.schedule_once(lambda dt: self._after_delete_cleanup(app), 0.1)
+                # Show success message (stay in editor like add does)
+                App.get_running_app().show_popup("Erfolg", "Eintrag erfolgreich gelöscht")
                 
             except Exception as e:
                 logger.error(f"[ENTRY_EDITOR] Error deleting entry: {e}")
@@ -329,11 +325,6 @@ class EntryEditorPopup(Popup):
             except Exception as e:
                 logger.error(f"[ENTRY_EDITOR] Error adding manual entry: {e}")
                 App.get_running_app().show_popup("Error", f"Fehler beim Hinzufügen: {str(e)}")
-    
-    def _after_delete_cleanup(self, app):
-        """Called after popup is dismissed to show success and navigate"""
-        app.show_popup("Erfolg", "Eintrag erfolgreich gelöscht")
-        app.root.current = "timeclock"
     
     def _recalculate_all_actions(self):
         """

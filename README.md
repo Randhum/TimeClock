@@ -206,7 +206,8 @@ These are included in `requirements.txt` and installed automatically.
 When editing time entries (adding or deleting entries):
 
 - **Automatic Action Determination**: The system automatically determines whether an entry should be "IN" or "OUT" based on the chronological order of entries. You no longer need to manually select the action when adding entries.
-- **Action Recalculation**: When entries are added, deleted, or modified, all remaining entries have their actions automatically recalculated to maintain proper IN/OUT alternation.
+- **Action Recalculation**: When entries are added, deleted, or modified, all remaining entries have their actions automatically recalculated to maintain proper IN/OUT alternation. Both add and delete operations use the same recalculation logic for consistency.
+- **Consistent Editor Behavior**: After adding or deleting an entry, you remain in the entry editor to continue making changes. A success message confirms each operation.
 - **Session Matching**: Work sessions are matched chronologically across day boundaries. If you clock in before midnight and clock out after midnight, the session is correctly linked and counted on the day you clocked in.
 
 ### RFID Provider
