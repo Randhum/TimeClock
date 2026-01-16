@@ -199,7 +199,18 @@ class WorkingTimeReport:
             logger.info(f"{len(pending_ins)} open session(s) for {self.employee.name} remain without a clock-out")
         
         # Convert sessions to daily_sessions format
+        # Only include sessions where the IN action (session date) is within the requested range
         for session in sessions:
+            session_date = session['date']
+            
+            # Filter: only include sessions where clock_in date is within the date range
+            if self.start_date and session_date < self.start_date:
+                logger.debug(f"Skipping session {session['clock_in']} - before start_date {self.start_date}")
+                continue
+            if session_date > self.end_date:
+                logger.debug(f"Skipping session {session['clock_in']} - after end_date {self.end_date}")
+                continue
+            
             total_seconds = session.get('total_seconds', session['total_minutes'] * 60)
             hours = total_seconds / 3600.0
             minutes = total_seconds / 60.0
