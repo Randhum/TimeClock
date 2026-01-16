@@ -6,7 +6,6 @@ from kivy.uix.popup import Popup
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.label import Label
-from kivy.uix.scrollview import ScrollView
 from kivy.properties import ObjectProperty
 
 from ..widgets import DebouncedButton
@@ -51,20 +50,14 @@ class MinutePickerPopup(Popup):
         header.add_widget(header_label)
         left_panel.add_widget(header)
         
-        # Minutes grid - Scrollable (fills remaining height)
-        minutes_scroll = ScrollView(
-            do_scroll_x=False,
-            do_scroll_y=True,
-            bar_width=10,
-            size_hint_y=1,
-            size_hint_x=1
-        )
+        # Minutes grid - NO ScrollView needed (only 3 rows of buttons)
+        # This fixes touch event issues where ScrollView was intercepting first tap
         minute_grid = GridLayout(
             cols=4,
             spacing=3,
-            size_hint_y=None
+            size_hint_y=None,
+            height='162dp'  # 3 rows * 50dp + 2 * 3dp spacing
         )
-        minute_grid.bind(minimum_height=minute_grid.setter('height'))
         
         self.minute_buttons = []
         minute_values = list(range(0, 60, 5))
@@ -81,8 +74,7 @@ class MinutePickerPopup(Popup):
             minute_grid.add_widget(btn)
             self.minute_buttons.append(btn)
         
-        minutes_scroll.add_widget(minute_grid)
-        left_panel.add_widget(minutes_scroll)
+        left_panel.add_widget(minute_grid)
         main_layout.add_widget(left_panel)
         
         # --- RIGHT PANEL: Controls (35% width) ---

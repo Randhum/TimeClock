@@ -134,10 +134,12 @@ class AddEntryPopup(Popup):
         ).open()
 
     def _pick_time(self):
-        TimePickerPopup(
+        # Store reference to prevent garbage collection before callback executes
+        self._time_picker = TimePickerPopup(
             current_time=self.selected_time,
             on_select=self._set_time
-        ).open()
+        )
+        self._time_picker.open()
 
     def _set_date(self, date_obj):
         self.selected_date = date_obj
