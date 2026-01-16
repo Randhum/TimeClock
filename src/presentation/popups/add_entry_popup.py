@@ -176,6 +176,11 @@ class AddEntryPopup(Popup):
             self.action_label.color = (0.2, 0.8, 0.2, 1)
 
     def _save(self):
+        # Prevent double-save (belt and suspenders with DebouncedButton fix)
+        if getattr(self, '_saving', False):
+            return
+        self._saving = True
+        
         try:
             if self.selected_action is None:
                 # Ensure action is determined before saving
@@ -188,4 +193,6 @@ class AddEntryPopup(Popup):
         except Exception as e:
             logger.error(f"[ADD_ENTRY] Error combining date/time: {e}")
             App.get_running_app().show_popup("Error", f"Ungültiges Datum/Zeit: {str(e)}")
+        finally:
+            self._saving = False
 

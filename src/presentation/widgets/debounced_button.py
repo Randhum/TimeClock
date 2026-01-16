@@ -24,7 +24,7 @@ class DebouncedButton(Button):
         
         # Block rapid successive clicks
         if current_time - self._last_action_time < self._debounce_interval:
-            return  # Ignore this click, don't call super
+            return True  # Return True to STOP event propagation to callbacks
 
         self._last_action_time = current_time
         return super().on_release()
