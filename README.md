@@ -640,6 +640,9 @@ The application includes comprehensive reliability features to ensure data integ
 - **Comprehensive Logging**: All errors are logged with context for debugging
 - **User Feedback**: Clear error messages inform users of issues without exposing technical details
 
+### UI Input Debouncing
+- **Touch-Level Debounce**: Button taps are debounced at the touch event phase to prevent duplicate actions (e.g., double saves or deletes)
+
 ---
 
 ## Troubleshooting

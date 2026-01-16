@@ -18,13 +18,16 @@ class DebouncedButton(Button):
         self._last_action_time = 0
         self._debounce_interval = 0.5  # 500ms between completed clicks
     
-    def on_release(self):
-        """Debounce at the action level, not the touch level"""
-        current_time = time.time()
-        
-        # Block rapid successive clicks
-        if current_time - self._last_action_time < self._debounce_interval:
-            return True  # Return True to STOP event propagation to callbacks
+    def on_touch_up(self, touch):
+        """Debounce at the touch level to stop event propagation to callbacks"""
+        if touch.grab_current is self:
+            current_time = time.time()
+            # Block rapid successive clicks
+            if current_time - self._last_action_time < self._debounce_interval:
+                self.state = "normal"
+                touch.ungrab(self)
+                return True
 
-        self._last_action_time = current_time
-        return super().on_release()
+            self._last_action_time = current_time
+
+        return super().on_touch_up(touch)
