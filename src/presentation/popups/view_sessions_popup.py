@@ -47,27 +47,27 @@ class MonthPickerPopup(Popup):
         year_row = BoxLayout(orientation='horizontal', spacing=10, size_hint_y=None, height='60dp')
         
         prev_year_btn = DebouncedButton(
-            text="◀",
-            size_hint_x=0.2,
+            text="<<",
+            size_hint_x=0.15,
             font_size='24sp',
-            background_color=(0.3, 0.3, 0.3, 1)
+            background_color=(0.3, 0.5, 0.7, 1)
         )
         prev_year_btn.bind(on_release=lambda *_: self._change_year(-1))
         year_row.add_widget(prev_year_btn)
         
         self.year_label = Label(
             text=str(self.selected_year),
-            size_hint_x=0.6,
+            size_hint_x=0.7,
             font_size='24sp',
             bold=True
         )
         year_row.add_widget(self.year_label)
         
         next_year_btn = DebouncedButton(
-            text="▶",
-            size_hint_x=0.2,
+            text=">>",
+            size_hint_x=0.15,
             font_size='24sp',
-            background_color=(0.3, 0.3, 0.3, 1)
+            background_color=(0.3, 0.5, 0.7, 1)
         )
         next_year_btn.bind(on_release=lambda *_: self._change_year(1))
         year_row.add_widget(next_year_btn)
@@ -233,11 +233,10 @@ class ViewSessionsPopup(Popup):
     
     def _set_month(self, year, month):
         """Update selected month and reload report"""
-        if year != self.selected_year or month != self.selected_month:
-            self.selected_year = year
-            self.selected_month = month
-            self.month_btn.text = self._get_month_display_text()
-            self._load_month_report()
+        self.selected_year = year
+        self.selected_month = month
+        self.month_btn.text = self._get_month_display_text()
+        self._load_month_report()
     
     def _load_month_report(self):
         """Load and display report for the selected month (sessions with IN action in the month)"""
