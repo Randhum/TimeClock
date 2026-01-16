@@ -10,6 +10,7 @@ from kivy.uix.label import Label
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.button import Button
 from kivy.app import App
+from kivy.clock import Clock
 from ..widgets import DebouncedButton
 from .limited_date_picker_popup import LimitedDatePickerPopup
 from .add_entry_popup import AddEntryPopup
@@ -120,6 +121,9 @@ class EntryEditorPopup(Popup):
         
         scroll.add_widget(grid)
         layout.add_widget(scroll)
+        
+        # Configure scroll behavior to prevent double-tap issues when content fits
+        self._configure_scroll_behavior(scroll, grid)
         
         # Close button
         close_btn = DebouncedButton(
@@ -379,4 +383,16 @@ class EntryEditorPopup(Popup):
         except Exception as e:
             logger.error(f"[ENTRY_EDITOR] Error recalculating actions: {e}")
             # Don't raise - allow operation to continue even if recalculation fails
+
+    def _configure_scroll_behavior(self, scroll_view, grid):
+        """Disable scrolling when the grid fits to avoid touch interception (prevents double-tap issue)."""
+        def _update_scroll(*_):
+            needs_scroll = grid.height > scroll_view.height
+            scroll_view.do_scroll_y = needs_scroll
+            scroll_view.bar_width = 10 if needs_scroll else 0
+
+        # Schedule once after layout and keep updated on size changes
+        Clock.schedule_once(lambda dt: _update_scroll(), 0)
+        scroll_view.bind(height=_update_scroll)
+        grid.bind(height=_update_scroll)
 
