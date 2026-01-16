@@ -642,6 +642,7 @@ The application includes comprehensive reliability features to ensure data integ
 
 ### UI Input Debouncing
 - **Touch-Level Debounce**: Button taps are debounced at the touch event phase to prevent duplicate actions (e.g., double saves or deletes)
+- **Picker Tap Reliability**: Hour/minute pickers disable scrolling when content fits to avoid ScrollView intercepting taps
 
 ---
 

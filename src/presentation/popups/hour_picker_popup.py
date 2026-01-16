@@ -2,6 +2,7 @@
 Hour picker popup for selecting hours (0-23).
 """
 import logging
+from kivy.clock import Clock
 from kivy.uix.popup import Popup
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.gridlayout import GridLayout
@@ -50,7 +51,6 @@ class HourPickerPopup(Popup):
         # Hours grid - Scrollable (fills remaining height)
         hours_scroll = ScrollView(
             do_scroll_x=False,
-            do_scroll_y=True,
             bar_width=10,
             size_hint_y=1,
             size_hint_x=1
@@ -78,6 +78,7 @@ class HourPickerPopup(Popup):
         
         hours_scroll.add_widget(hour_grid)
         left_panel.add_widget(hours_scroll)
+        self._configure_scroll_behavior(hours_scroll, hour_grid)
         main_layout.add_widget(left_panel)
         
         # --- RIGHT PANEL: Controls (35% width) ---
@@ -142,4 +143,16 @@ class HourPickerPopup(Popup):
         if self.on_select_callback:
             self.on_select_callback(self.selected_hour)
         self.dismiss()
+
+    def _configure_scroll_behavior(self, scroll_view, grid):
+        """Disable scrolling when the grid fits to avoid touch interception."""
+        def _update_scroll(*_):
+            needs_scroll = grid.height > scroll_view.height
+            scroll_view.do_scroll_y = needs_scroll
+            scroll_view.bar_width = 10 if needs_scroll else 0
+
+        # Schedule once after layout and keep updated on size changes
+        Clock.schedule_once(lambda dt: _update_scroll(), 0)
+        scroll_view.bind(height=_update_scroll)
+        grid.bind(height=_update_scroll)
 
