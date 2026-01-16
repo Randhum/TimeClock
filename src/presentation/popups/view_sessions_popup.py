@@ -1,6 +1,7 @@
 """
 View sessions popup with date picker for selecting which day's sessions to view.
 """
+import calendar
 import datetime
 import logging
 from kivy.uix.popup import Popup
@@ -54,11 +55,21 @@ class ViewSessionsPopup(Popup):
         # Header with date selection
         header_row = BoxLayout(orientation='horizontal', spacing=10, size_hint_y=None, height='70dp')
         
+        # Month Report button
+        month_btn = DebouncedButton(
+            text="Monatsbericht",
+            size_hint_x=0.3,
+            font_size='18sp',
+            background_color=(0.4, 0.7, 0.3, 1)
+        )
+        month_btn.bind(on_release=lambda *_: self._show_month_report())
+        header_row.add_widget(month_btn)
+        
         # Date selection button
         self.date_btn = DebouncedButton(
             text=f"Datum: {self.selected_date.strftime('%d.%m.%Y')}",
-            size_hint_x=0.6,
-            font_size='20sp',
+            size_hint_x=0.4,
+            font_size='18sp',
             background_color=(0.2, 0.6, 0.9, 1)
         )
         self.date_btn.bind(on_release=lambda *_: self._pick_date())
@@ -67,8 +78,8 @@ class ViewSessionsPopup(Popup):
         # Close button
         close_btn = DebouncedButton(
             text="Schließen",
-            size_hint_x=0.4,
-            font_size='20sp',
+            size_hint_x=0.3,
+            font_size='18sp',
             background_color=(0.3, 0.6, 0.9, 1)
         )
         close_btn.bind(on_release=lambda *_: self.dismiss())
@@ -128,4 +139,23 @@ class ViewSessionsPopup(Popup):
         except Exception as e:
             logger.error(f"Error loading report for {self.selected_date}: {e}")
             self.report_label.text = f"Fehler beim Laden des Berichts:\n{str(e)}"
+
+    def _show_month_report(self):
+        """Load and display report for the entire month of selected date"""
+        try:
+            # Calculate first and last day of month
+            year = self.selected_date.year
+            month = self.selected_date.month
+            first_day = datetime.date(year, month, 1)
+            last_day = datetime.date(year, month, calendar.monthrange(year, month)[1])
+            
+            # Update button text to show month range
+            self.date_btn.text = f"{first_day.strftime('%d.%m')} - {last_day.strftime('%d.%m.%Y')}"
+            
+            # Generate and display report
+            report = generate_wt_report(self.employee, first_day, last_day)
+            self.report_label.text = report.to_text()
+        except Exception as e:
+            logger.error(f"Error loading month report: {e}")
+            self.report_label.text = f"Fehler beim Laden des Monatsberichts:\n{str(e)}"
 
