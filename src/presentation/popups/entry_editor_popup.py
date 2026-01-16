@@ -187,9 +187,8 @@ class EntryEditorPopup(Popup):
             try:
                 ensure_db_connection()
                 
-                # Soft delete the entry
-                with db.atomic():
-                    soft_delete_time_entries([entry.id])
+                # Soft delete the entry (soft_delete_time_entries has its own transaction)
+                soft_delete_time_entries([entry.id])
                 
                 logger.info(f"[ENTRY_EDITOR] Deleted entry ID={entry.id}")
                 
@@ -329,8 +328,7 @@ class EntryEditorPopup(Popup):
     def _recalculate_all_actions(self):
         """
         Recalculate actions for all active entries for this employee in chronological order.
-        Only fixes entries that are logically incorrect (e.g., two 'in' in a row, two 'out' in a row).
-        Preserves existing actions when they form a valid IN/OUT alternation pattern.
+        Ensures proper IN/OUT alternation pattern starting from the first entry.
         """
         try:
             ensure_db_connection()
@@ -342,82 +340,42 @@ class EntryEditorPopup(Popup):
             ).order_by(TimeEntry.timestamp.asc()))
             
             if not all_entries:
+                logger.debug("[ENTRY_EDITOR] No active entries to recalculate")
                 return
             
             # Check if actions form a valid pattern (alternating in/out)
-            # Only recalculate if there are logical errors (same action twice in a row)
             needs_recalculation = False
             for i in range(1, len(all_entries)):
                 if all_entries[i].action == all_entries[i-1].action:
                     needs_recalculation = True
-                    logger.debug(f"[ENTRY_EDITOR] Found consecutive {all_entries[i].action.upper()} actions, recalculation needed")
+                    logger.debug(f"[ENTRY_EDITOR] Found consecutive {all_entries[i].action.upper()} actions at index {i}, recalculation needed")
                     break
             
             # If actions already form a valid pattern, don't change them
             if not needs_recalculation:
-                logger.debug(f"[ENTRY_EDITOR] Actions already form valid pattern for {len(all_entries)} entries, no recalculation needed")
+                logger.debug(f"[ENTRY_EDITOR] Actions already form valid pattern for {len(all_entries)} entries")
                 return
             
-            # Calculate expected actions based on chronological order
-            # Start with the first entry's action (preserve it if it's valid)
-            # If first entry is 'out', that's valid (maybe they forgot to clock in), so preserve it
-            expected_actions = []
+            # Calculate expected actions: preserve first entry's action, then alternate
             first_action = all_entries[0].action
-            
-            # If first entry is 'out', we'll start with 'out' and alternate from there
-            # Otherwise start with 'in' and alternate
-            if first_action == 'out':
-                expected_actions.append('out')
-            else:
-                expected_actions.append('in')
-            
-            # Alternate from the first action
+            expected_actions = [first_action]
             for i in range(1, len(all_entries)):
-                prev_expected = expected_actions[i-1]
-                expected_actions.append('out' if prev_expected == 'in' else 'in')
+                prev = expected_actions[i-1]
+                expected_actions.append('out' if prev == 'in' else 'in')
             
-            # Now update only entries that are logically incorrect
+            # Update all entries that don't match expected action
             updates_made = 0
-            try:
-                with db.atomic():
-                    for entry, expected_action in zip(all_entries, expected_actions):
-                        # Only update if action is different AND it creates a logical error
-                        if entry.action != expected_action:
-                            # Check if current action creates a problem with neighbors
-                            entry_idx = all_entries.index(entry)
-                            has_problem = False
-                            
-                            # Check previous entry
-                            if entry_idx > 0:
-                                prev_entry = all_entries[entry_idx - 1]
-                                if entry.action == prev_entry.action:
-                                    has_problem = True
-                            
-                            # Check next entry
-                            if entry_idx < len(all_entries) - 1:
-                                next_entry = all_entries[entry_idx + 1]
-                                if entry.action == next_entry.action:
-                                    has_problem = True
-                            
-                            # Only update if there's a logical problem
-                            if has_problem:
-                                TimeEntry.update(action=expected_action).where(TimeEntry.id == entry.id).execute()
-                                logger.debug(f"[ENTRY_EDITOR] Fixed entry ID={entry.id} action from {entry.action} to {expected_action}")
-                                updates_made += 1
-                                entry.action = expected_action
-                    db.commit()
-                    
-                if updates_made > 0:
-                    logger.info(f"[ENTRY_EDITOR] Recalculated actions for {len(all_entries)} entries ({updates_made} fixed)")
-                else:
-                    logger.debug(f"[ENTRY_EDITOR] No action fixes needed for {len(all_entries)} entries")
-            except Exception as e:
-                logger.error(f"[ENTRY_EDITOR] Error updating actions in transaction: {e}")
-                try:
-                    db.rollback()
-                except:
-                    pass
-                raise
+            with db.atomic():
+                for entry, expected_action in zip(all_entries, expected_actions):
+                    if entry.action != expected_action:
+                        TimeEntry.update(action=expected_action).where(TimeEntry.id == entry.id).execute()
+                        logger.debug(f"[ENTRY_EDITOR] Updated entry ID={entry.id} from {entry.action} to {expected_action}")
+                        updates_made += 1
+                        entry.action = expected_action
+            
+            if updates_made > 0:
+                logger.info(f"[ENTRY_EDITOR] Recalculated {updates_made} entries to ensure proper IN/OUT alternation")
+            
         except Exception as e:
             logger.error(f"[ENTRY_EDITOR] Error recalculating actions: {e}")
             # Don't raise - allow operation to continue even if recalculation fails
