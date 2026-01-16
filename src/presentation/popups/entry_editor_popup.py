@@ -192,6 +192,7 @@ class EntryEditorPopup(Popup):
                 # Soft delete the entry
                 with db.atomic():
                     soft_delete_time_entries([entry.id])
+                
                 logger.info(f"[ENTRY_EDITOR] Deleted entry ID={entry.id}")
                 
                 # Recalculate all actions for all active entries
