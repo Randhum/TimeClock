@@ -1,5 +1,8 @@
 # TimeClock
 
+![TimeClock][foti]
+
+[foti]: docs/TimeClock.jpeg
 > **RFID-Based Employee Time Tracking System**
 
 A production-ready kiosk application for workforce time tracking, built with **Python**, **Kivy**, and **SQLite**. Designed for touch-screen environments with RFID badge readers.
