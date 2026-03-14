@@ -208,6 +208,7 @@ These are included in `requirements.txt` and installed automatically.
 
 When editing time entries (adding or deleting entries):
 
+- **Editable Date Range**: In **Edit Sessions**, entries can be viewed and modified for the past 31 days (including today).
 - **Automatic Action Determination**: The system automatically determines whether an entry should be "IN" or "OUT" based on the chronological order of entries. You no longer need to manually select the action when adding entries.
 - **Action Recalculation**: When entries are added, deleted, or modified, all remaining entries have their actions automatically recalculated to maintain proper IN/OUT alternation. Both add and delete operations use the same recalculation logic for consistency.
 - **Consistent Editor Behavior**: After adding or deleting an entry, you remain in the entry editor to continue making changes. A success message confirms each operation.

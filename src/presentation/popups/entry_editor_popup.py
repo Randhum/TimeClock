@@ -13,7 +13,7 @@ from kivy.app import App
 from kivy.clock import Clock
 from ..widgets import DebouncedButton
 from .limited_date_picker_popup import LimitedDatePickerPopup
-from .add_entry_popup import AddEntryPopup
+from .add_entry_popup import AddEntryPopup, EDIT_SESSIONS_LOOKBACK_DAYS
 from ...data.database import TimeEntry, db, ensure_db_connection, soft_delete_time_entries
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ class EntryEditorPopup(Popup):
         self.employee = employee
         self.on_deleted = on_deleted
         self.entries = []
-        # Default to today, but allow selection of past 7 days
+        # Default to today; date selection allows configurable lookback.
         self.selected_date = datetime.date.today()
         
         # Register with popup service for proper management
@@ -235,9 +235,9 @@ class EntryEditorPopup(Popup):
         self._populate_entries_grid()
     
     def _pick_date(self):
-        """Open date picker limited to past 7 days"""
+        """Open date picker limited to the configured edit lookback window."""
         today = datetime.date.today()
-        min_date = today - datetime.timedelta(days=7)
+        min_date = today - datetime.timedelta(days=EDIT_SESSIONS_LOOKBACK_DAYS)
         
         LimitedDatePickerPopup(
             current_date=self.selected_date,

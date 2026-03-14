@@ -16,6 +16,9 @@ from ...data.database import TimeEntry, ensure_db_connection
 
 logger = logging.getLogger(__name__)
 
+# Maximum lookback range for manual entry date selection.
+EDIT_SESSIONS_LOOKBACK_DAYS = 31
+
 
 class AddEntryPopup(Popup):
     def __init__(self, employee, on_save=None, initial_date=None, **kwargs):
@@ -122,9 +125,9 @@ class AddEntryPopup(Popup):
         self.content = main_layout
 
     def _pick_date(self):
-        """Open date picker, limiting to past 7 days for manual entries"""
+        """Open date picker, limiting to the configured edit lookback window."""
         today = datetime.date.today()
-        min_date = today - datetime.timedelta(days=7)
+        min_date = today - datetime.timedelta(days=EDIT_SESSIONS_LOOKBACK_DAYS)
         
         LimitedDatePickerPopup(
             current_date=self.selected_date,
