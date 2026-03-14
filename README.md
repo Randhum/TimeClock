@@ -174,7 +174,7 @@ Zeitraum: 01.12.2025 - 31.12.2025
 
 Dezember 2025
 1  | 2  | 3  | 4  | ... | 31 | Total
-8:30|7:45|8:15|   | ... |8:00| 168:30
+08:30:00|07:45:00|08:15:00|   | ... |08:00:00| 168:30:00
 
 Januar 2026
 1  | 2  | 3  | ... | 31 | Total
@@ -185,8 +185,8 @@ Januar 2026
 - **Header**: Employee name and date range
 - **Month Section**: Month name and year (e.g., "Dezember 2025")
 - **Day Row**: Day numbers (1-31) across columns
-- **Hours Row**: Working hours in H:MM format per day (calculated from clock entries)
-- **Total Column**: Monthly total hours in H:MM format
+- **Hours Row**: Working hours in HH:MM:SS format per day (calculated from clock entries)
+- **Total Column**: Monthly total hours in HH:MM:SS format
 
 **Data Source:**
 - Hours are calculated from actual `TimeEntry` records (clock in/out timestamps)

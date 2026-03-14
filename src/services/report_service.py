@@ -565,10 +565,7 @@ class WorkingTimeReport:
                 if day in month_data['days']:
                     total_seconds = month_data['days'][day]['total_seconds']
                     if total_seconds > 0:
-                        # Format as H:MM
-                        hours = total_seconds // 3600
-                        minutes = (total_seconds % 3600) // 60
-                        cell.value = f"{hours}:{minutes:02d}"
+                        cell.value = _format_hms(total_seconds)
                         month_total_seconds += total_seconds
                     else:
                         cell.value = ""
@@ -579,9 +576,7 @@ class WorkingTimeReport:
                 cell.border = thin_border
             
             # Month total
-            total_hours = month_total_seconds // 3600
-            total_minutes = (month_total_seconds % 3600) // 60
-            ws[f'{total_col}{row}'] = f"{total_hours}:{total_minutes:02d}"
+            ws[f'{total_col}{row}'] = _format_hms(month_total_seconds)
             ws[f'{total_col}{row}'].font = header_font
             ws[f'{total_col}{row}'].alignment = center_align
             ws[f'{total_col}{row}'].border = thin_border
@@ -658,9 +653,7 @@ class WorkingTimeReport:
                     if day in month_data['days']:
                         total_seconds = month_data['days'][day]['total_seconds']
                         if total_seconds > 0:
-                            hours = total_seconds // 3600
-                            minutes = (total_seconds % 3600) // 60
-                            hours_row.append(f"{hours}:{minutes:02d}")
+                            hours_row.append(_format_hms(total_seconds))
                             month_total_seconds += total_seconds
                         else:
                             hours_row.append('')
@@ -668,9 +661,7 @@ class WorkingTimeReport:
                         hours_row.append('')
                 
                 # Month total
-                total_hours = month_total_seconds // 3600
-                total_minutes = (month_total_seconds % 3600) // 60
-                hours_row.append(f"{total_hours}:{total_minutes:02d}")
+                hours_row.append(_format_hms(month_total_seconds))
                 writer.writerow(hours_row)
                 
                 writer.writerow([])  # Empty row between months
@@ -778,9 +769,7 @@ class WorkingTimeReport:
                 if day in month_data['days']:
                     total_seconds = month_data['days'][day]['total_seconds']
                     if total_seconds > 0:
-                        hours = total_seconds // 3600
-                        minutes = (total_seconds % 3600) // 60
-                        hours_row.append(f"{hours}:{minutes:02d}")
+                        hours_row.append(_format_hms(total_seconds))
                         month_total_seconds += total_seconds
                     else:
                         hours_row.append('')
@@ -788,9 +777,7 @@ class WorkingTimeReport:
                     hours_row.append('')
             
             # Month total
-            total_hours = month_total_seconds // 3600
-            total_minutes = (month_total_seconds % 3600) // 60
-            hours_row.append(f"{total_hours}:{total_minutes:02d}")
+            hours_row.append(_format_hms(month_total_seconds))
             grand_total_seconds += month_total_seconds
             
             # Create table
@@ -816,15 +803,13 @@ class WorkingTimeReport:
         
         # Grand total
         story.append(Spacer(1, 0.3*cm))
-        grand_hours = grand_total_seconds // 3600
-        grand_minutes = (grand_total_seconds % 3600) // 60
         total_style = ParagraphStyle(
             'GrandTotal',
             parent=styles['Heading2'],
             fontSize=12,
             alignment=TA_LEFT
         )
-        story.append(Paragraph(f"<b>Gesamtstunden:</b> {grand_hours}:{grand_minutes:02d}", total_style))
+        story.append(Paragraph(f"<b>Gesamtstunden:</b> {_format_hms(grand_total_seconds)}", total_style))
         
         doc.build(story)
         logger.info(f"Working time PDF report exported to {filename}")
@@ -988,10 +973,7 @@ def generate_all_employees_lgav_excel(
                 if day in month_data['days']:
                     total_seconds = month_data['days'][day]['total_seconds']
                     if total_seconds > 0:
-                        # Format as H:MM
-                        hours = total_seconds // 3600
-                        minutes = (total_seconds % 3600) // 60
-                        cell.value = f"{hours}:{minutes:02d}"
+                        cell.value = _format_hms(total_seconds)
                         month_total_seconds += total_seconds
                     else:
                         cell.value = ""
@@ -1002,9 +984,7 @@ def generate_all_employees_lgav_excel(
                 cell.border = thin_border
             
             # Month total
-            total_hours = month_total_seconds // 3600
-            total_minutes = (month_total_seconds % 3600) // 60
-            ws[f'{total_col}{row}'] = f"{total_hours}:{total_minutes:02d}"
+            ws[f'{total_col}{row}'] = _format_hms(month_total_seconds)
             ws[f'{total_col}{row}'].font = header_font
             ws[f'{total_col}{row}'].alignment = center_align
             ws[f'{total_col}{row}'].border = thin_border
