@@ -17,7 +17,7 @@ from ...data.database import TimeEntry, ensure_db_connection
 logger = logging.getLogger(__name__)
 
 # Maximum lookback range for manual entry date selection.
-EDIT_SESSIONS_LOOKBACK_DAYS = 31
+EDIT_SESSIONS_LOOKBACK_DAYS = 14
 
 
 class AddEntryPopup(Popup):
